@@ -7,6 +7,7 @@ import arc.math.geom.Geometry;
 import arc.struct.*;
 import arc.util.Nullable;
 import classicMod.content.RUnitTypes;
+import classicMod.content.RBlocks;
 import classicMod.library.ai.PathfinderExtended;
 import mindustry.Vars;
 import mindustry.content.*;
@@ -143,13 +144,30 @@ public class CausticHeart extends NeoplasmBlock {
             }
             if (!Units.canCreate(Team.neoplastic, type)) return;
 
-            Tile spawnTile = findAttackSpawnTile(type.flying);
-            if (spawnTile == null || !NeoplasmBlock.trySpawn(Team.neoplastic)) return;
+            // Prefer an existing colony pod so queued attackers emerge from
+            // established brood chambers instead of spawning beside the Heart.
+            CausticBirthingPod.BirthingPodBuild pod = null;
+            for (Building build : Groups.build) {
+                if (build.team == Team.neoplastic && build instanceof CausticBirthingPod.BirthingPodBuild candidate
+                        && candidate.queuedCount() < 3) {
+                    pod = candidate;
+                    break;
+                }
+            }
 
-            Unit attacker = type.create(Team.neoplastic);
-            attacker.set(spawnTile.worldx(), spawnTile.worldy());
-            attacker.rotation(90f);
-            attacker.add();
+            if (pod == null) {
+                Tile podTile = findAttackSpawnTile(false);
+                if (podTile == null) return;
+                podTile.setBlock(RBlocks.birthingPod, Team.neoplastic);
+                if (podTile.build instanceof CausticBirthingPod.BirthingPodBuild created) {
+                    created.oneShot = true;
+                    created.enqueueBrood(type);
+                    pendingAttackers.remove(0);
+                }
+                return;
+            }
+
+            pod.enqueueBrood(type);
             pendingAttackers.remove(0);
         }
 
