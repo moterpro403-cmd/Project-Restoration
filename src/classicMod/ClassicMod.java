@@ -19,7 +19,7 @@ import classicMod.library.ui.dialog.*;
 import classicMod.library.ui.menu.*;
 import classicMod.library.unitType.unit.JumpingUnit;
 import mindustry.Vars;
-import mindustry.ai.types.CommandAI;
+import mindustry.ai.types.*;
 import mindustry.game.EventType;
 import mindustry.game.EventType.ClientLoadEvent;
 import mindustry.gen.*;
@@ -456,28 +456,21 @@ public class ClassicMod extends Mod {
 
         RMusic.load();
 
-        // UnitType.controller is a factory, not a UnitController instance.
-        // Inspect the initialized sample after content initialization.
+        // Wrap the factory instead of replacing every unit's controller.
+        // Player-controlled CommandAI and mod-specific AI implementations are preserved.
         Events.on(EventType.ContentInitEvent.class, event -> {
             for (UnitType type : content.units()) {
-                if (type.sample == null || type.controller == null) continue;
+                if (type.controller == null) continue;
 
-                mindustry.game.Team previousTeam = type.sample.team;
-                boolean usesCommandAI;
-                try {
-                    type.sample.team = state.rules.defaultTeam;
-                    usesCommandAI = type.createController(type.sample) instanceof CommandAI;
-                } finally {
-                    type.sample.team = previousTeam;
-                }
+                var originalController = type.controller;
+                type.controller = unit -> {
+                    var controller = originalController.get(unit);
+                    if (!unit.team.isAI()) return controller;
 
-                if (usesCommandAI) {
-                    if (type.flying) {
-                        type.controller = u -> new ReplacementFlyingAI();
-                    } else {
-                        type.controller = u -> new ReplacementGroundAI();
-                    }
-                }
+                    if (controller instanceof FlyingAI) return new ReplacementFlyingAI();
+                    if (controller instanceof GroundAI) return new ReplacementGroundAI();
+                    return controller;
+                };
             }
         });
     }
