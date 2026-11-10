@@ -16,7 +16,6 @@ import mindustry.entities.Puddles;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Building;
-import mindustry.gen.Groups;
 import mindustry.type.Liquid;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
@@ -69,8 +68,9 @@ public class NeoplasmBlock extends Block {
         // Count only once per second; this is shared by all spread and spawn checks.
         if (now >= control.nextCountCheck) {
             int count = 0;
-            for (Building build : Groups.build) {
-                if (build.team == team && build instanceof NeoplasmBuilding) count++;
+            // TeamData maintains only this team's buildings, avoiding a global scan.
+            for (Building build : team.data().buildings) {
+                if (build instanceof NeoplasmBuilding) count++;
             }
             control.structureCount = count;
             control.nextCountCheck = now + 60f;
@@ -98,6 +98,24 @@ public class NeoplasmBlock extends Block {
                 spreadCapacity(control),
                 control.spreadCredits + elapsed * spreadRate(control) / 60f
         );
+    }
+
+    /** Current banked spread credits for UI bars. */
+    public static float spreadCredits(Team team) {
+        if (team == null) return 0f;
+        SpreadControl control = controlFor(team);
+        refillSpreadCredits(control);
+        return control.spreadCredits;
+    }
+
+    /** Current spread-credit storage capacity for UI bars. */
+    public static float spreadCapacity(Team team) {
+        return team == null ? 1f : spreadCapacity(controlFor(team));
+    }
+
+    /** Current number of Neoplasm structures for UI and scaling. */
+    public static int structureCount(Team team) {
+        return team == null ? 0 : controlFor(team).structureCount;
     }
 
     protected static boolean canSpread(Team team) {
