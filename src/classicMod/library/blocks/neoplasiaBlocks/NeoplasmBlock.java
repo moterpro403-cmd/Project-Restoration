@@ -32,14 +32,13 @@ public class NeoplasmBlock extends Block {
 
     private static class SpreadControl {
         float nextSpreadAt;
+        float nextSpawnAt;
         float nextCountCheck;
         float lastTime;
         int structureCount;
     }
 
-    protected static boolean trySpread(Team team) {
-        if (team == null || Vars.net.client()) return false;
-
+    private static SpreadControl controlFor(Team team) {
         SpreadControl control = spreadControls.get(team);
         if (control == null) {
             control = new SpreadControl();
@@ -50,12 +49,13 @@ public class NeoplasmBlock extends Block {
         // Reset cached timers if the game clock restarts after loading a new match.
         if (now < control.lastTime) {
             control.nextSpreadAt = 0f;
+            control.nextSpawnAt = 0f;
             control.nextCountCheck = 0f;
             control.structureCount = 0;
         }
         control.lastTime = now;
 
-        // Counting is cached for one second to avoid scanning every building on every pulse.
+        // Counting is cached for one second to avoid scanning for every building pulse.
         if (now >= control.nextCountCheck) {
             int count = 0;
             for (Building build : Groups.build) {
@@ -64,6 +64,13 @@ public class NeoplasmBlock extends Block {
             control.structureCount = count;
             control.nextCountCheck = now + 60f;
         }
+        return control;
+    }
+
+    protected static boolean trySpread(Team team) {
+        if (team == null || Vars.net.client()) return false;
+        SpreadControl control = controlFor(team);
+        float now = Time.time;
 
         // 0.75s at the start, then +0.9s for each existing Neoplasm structure,
         // capped at 10s so the infection can still advance on very large maps.
@@ -71,6 +78,19 @@ public class NeoplasmBlock extends Block {
         if (now < control.nextSpreadAt) return false;
 
         control.nextSpreadAt = now + cooldown;
+        return true;
+    }
+
+    protected static boolean trySpawn(Team team) {
+        if (team == null || Vars.net.client()) return false;
+        SpreadControl control = controlFor(team);
+
+        // One spawn for the whole infection every 3s initially, slowing to
+        // a maximum of one every 12s as the Neoplasm footprint grows.
+        float cooldown = Mathf.clamp(180f + control.structureCount * 0.75f, 180f, 720f);
+        if (Time.time < control.nextSpawnAt) return false;
+
+        control.nextSpawnAt = Time.time + cooldown;
         return true;
     }
 
