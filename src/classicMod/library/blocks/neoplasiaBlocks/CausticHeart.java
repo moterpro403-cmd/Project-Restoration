@@ -72,7 +72,7 @@ public class CausticHeart extends NeoplasmBlock {
         }
 
         private int countWaveAttackers() {
-            int count = 0;
+            int count = pendingAttackers.size;
             for (Unit other : Groups.unit) {
                 if (!other.dead && other.team == Team.neoplastic && isWaveAttacker(other.type)) count++;
             }
