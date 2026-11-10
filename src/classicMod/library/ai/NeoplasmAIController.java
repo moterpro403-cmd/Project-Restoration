@@ -28,6 +28,10 @@ public class NeoplasmAIController extends AIController {
     private Tile currentSafeTarget = null;
     private float rerouteCooldown = 0f; // Time left before recomputing a new safe tile
 
+    // Ground units use the same progress timeout as the vanilla GroundAI.
+    private float stuckTime = 0f;
+    private float stuckX = -9999f, stuckY = -9999f;
+
     // Use ObjectSet for fast lookup
     public ObjectSet<Unit> knownNeoplasms = new ObjectSet<>();
     public Seq<Unit> neoplasmGroup = new Seq<>();
@@ -93,6 +97,9 @@ public class NeoplasmAIController extends AIController {
         neoplasmGroup.removeAll(toRemove);
         toRemove.clear();
 
+        // Keep danger memory local to the unit. Old death sites far across the
+        // map should not keep influencing its route forever.
+        DodgeTile.removeAll(tile -> tile == null || tile.dst(unit) > 240f);
 
         if (rerouteCooldown > 0) rerouteCooldown -= Time.delta;
         super.updateUnit();
@@ -164,22 +171,53 @@ public class NeoplasmAIController extends AIController {
         return availableLand.first();
     }
 
-    /** Moves away from a remembered death zone before resuming the attack route. */
+    /** Moves away from a remembered death zone without abrupt tile-to-tile turns. */
     protected boolean avoidNearbyDanger(Tile destination) {
         Tile current = unit.tileOn();
         Tile danger = closestDanger();
-        if (current == null || danger == null || danger.dst(current) >= 80f) return false;
+        if (current == null || danger == null) return false;
 
+        float distance = danger.dst(unit);
+        if (distance >= 80f) return false;
+
+        float pressure = Mathf.clamp((80f - distance) / 80f);
+
+        // Flying units can move freely: blend their attack heading with a
+        // smooth repulsion vector instead of forcing them onto ground tiles.
+        if (unit.isFlying()) {
+            vec.set(
+                    destination == null ? unit.vel.x : destination.worldx() - unit.x,
+                    destination == null ? unit.vel.y : destination.worldy() - unit.y
+            );
+            if (vec.isZero()) vec.set(1f, 0f);
+            vec.nor();
+
+            vec.add(arc.util.Tmp.v1.set(unit.x - danger.worldx(), unit.y - danger.worldy())
+                    .nor().scl(pressure * 1.8f));
+
+            if (vec.isZero()) return false;
+            unit.movePref(vec.setLength(unit.speed()));
+            return true;
+        }
+
+        // Ground units need a genuinely passable escape tile.
         Tile safe = getClosestTarget(15, danger, destination, unit);
         if (safe == null) safe = getEdgeEscapeTile();
 
         if (safe == null || safe == current) {
+            // A completely surrounded set of remembered tiles should not
+            // permanently immobilize a unit.
             DodgeTile.remove(danger);
             return false;
         }
 
-        unit.movePref(vec.set(safe.worldx(), safe.worldy()).sub(unit).limit(unit.speed()));
-        return true;
+        vec.set(safe.worldx() - unit.x, safe.worldy() - unit.y);
+        if (!vec.isZero()) {
+            unit.movePref(vec.setLength(unit.speed()));
+            return true;
+        }
+
+        return false;
     }
 
     /** Picks a passable neighboring tile that reduces distance to a blocked target. */
@@ -230,28 +268,40 @@ public class NeoplasmAIController extends AIController {
     }
 
     public void routeAir(){
-        Tile tile = this.unit.tileOn();
-        Tile targetTile = target != null ? target.tileOn() : null;
-        Tile nearDanger = closestDanger();
+        if (target == null) return;
 
-        // Reroute if too close to danger
-        if (nearDanger != null && targetTile != null) {
-            float distance = nearDanger.dst(tile);
-            if (distance < 80f){
-                Tile safeTarget = getClosestTarget(15, nearDanger, targetTile, unit);
-                if (safeTarget != null){
-                    targetTile = safeTarget;
-                } else {
-                    // Use edge escape if can't find a good safe target
-                    targetTile = getEdgeEscapeTile();
-                }
+        vec.set(target.getX() - unit.x, target.getY() - unit.y);
+        if (vec.isZero()) return;
+
+        Tile danger = closestDanger();
+        if (danger != null) {
+            float distance = danger.dst(unit);
+            if (distance < 80f) {
+                float pressure = Mathf.clamp((80f - distance) / 80f);
+                vec.nor().add(arc.util.Tmp.v1
+                        .set(unit.x - danger.worldx(), unit.y - danger.worldy())
+                        .nor().scl(pressure * 1.8f));
             }
         }
 
-        // Move toward safe target
-        if (targetTile != null && tile != targetTile){
-            unit.movePref(vec.set(targetTile).sub(unit).limit(unit.speed()));
+        if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
+    }
+
+    private boolean movementStuck() {
+        if (unit == null || unit.isFlying() || unit.type.speed <= 0.001f) return false;
+
+        float stuckRange = Vars.tilesize * 1.5f;
+        float stuckThreshold = Math.max(1f, stuckRange * 2f / unit.type.speed);
+
+        if (!unit.within(stuckX, stuckY, stuckRange)) {
+            stuckX = unit.x;
+            stuckY = unit.y;
+            stuckTime = 0f;
+        } else {
+            stuckTime += Time.delta;
         }
+
+        return stuckTime >= stuckThreshold;
     }
 
     @Override
@@ -260,13 +310,20 @@ public class NeoplasmAIController extends AIController {
         Tile tile = this.unit.tileOn();
         if (tile == null) return;
 
+        // When progress stalls, use the engine's native crowd-avoidance path
+        // instead of repeatedly selecting the same local neighbor.
+        if (movementStuck()) {
+            super.pathfind(pathTarget, true, true);
+            return;
+        }
+
         if (RVars.pathfinderCustom == null) {
             super.pathfind(pathTarget);
             return;
         }
 
         var field = RVars.pathfinderCustom.getField(this.unit.team, costType, pathTarget);
-        if (field == null) {
+        if (field == null || !field.initialized) {
             super.pathfind(pathTarget);
             return;
         }
@@ -279,13 +336,11 @@ public class NeoplasmAIController extends AIController {
         }
 
         if (unit.canPass(targetTile.x, targetTile.y)) {
-            unit.movePref(vec.trns(
-                    unit.angleTo(targetTile.worldx(), targetTile.worldy()),
-                    unit.speed()
-            ));
+            vec.trns(unit.angleTo(targetTile.worldx(), targetTile.worldy()), prefSpeed());
+            unit.movePref(vec);
         } else {
-            // If the flowfield step is blocked, attempt a local passable sidestep.
-            moveAroundBlockedTarget(targetTile);
+            // Do not greedily bounce between blocked adjacent tiles.
+            super.pathfind(pathTarget, true, true);
         }
     }
 }
