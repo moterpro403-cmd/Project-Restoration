@@ -36,36 +36,8 @@ public class SteamHugAI extends NeoplasmAIController {
     @Override
     public void pathfind(int pathTarget) {
         stucked = false;
-
-        int costType = this.unit.type.flowfieldPathType;
-        Tile tile = this.unit.tileOn();
-        if (tile == null) return;
-
-        // Try to find a normal path target avoiding DodgeTile
-        Tile targetTile = RVars.pathfinderCustom.getTargetTileDodge(
-                tile,
-                RVars.pathfinderCustom.getField(this.unit.team, costType, pathTarget),
-                DodgeTile
-        );
-
-        // Fallback logic if path is blocked or null
-        if (targetTile == null || tile == targetTile) {
-            // Try escaping to the edge of the danger zone
-            targetTile = getEdgeEscapeTile();
-
-            // Still stuck? Mark as stucked
-            if (targetTile == null || tile == targetTile) {
-                stucked = true;
-                return;
-            }
-        }
-
-        // Move toward target if valid
-        if (costType != 2 || targetTile.floor().isLiquid) {
-            this.unit.movePref(vec.trns(
-                    this.unit.angleTo(targetTile.worldx(), targetTile.worldy()),
-                    this.unit.speed()
-            ));
-        }
+        // Share the improved stuck recovery and safe flowfield routing used by
+        // the other Neoplasm ground units.
+        super.pathfind(pathTarget);
     }
 }
