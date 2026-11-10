@@ -163,51 +163,68 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             return dest.acceptItem(this, item) && dest.team == this.team;
         }
 
+        private boolean placeCord(Tile next, int targetTask) {
+            if (!passable(next, true) || CantReplace(next.block())) return false;
+
+            next.setBlock(RBlocks.cord, team);
+            if (next.build instanceof CordBuild cordBuild) {
+                cordBuild.task = targetTask;
+                cordBuild.facingRot = this.tile.relativeTo(next);
+                cordBuild.prev = this;
+                return true;
+            }
+            return false;
+        }
+
         @Override
         public void growCord(Block block) {
-            if (!NeoplasmBlock.trySpread(team)) {
+            retry++;
+            growRestart++;
+
+            if (!NeoplasmBlock.canSpread(team)) {
                 super.growCord(block);
                 return;
             }
 
-            retry++;
-            growRestart++;
             for (int a = 0; a < 4; a++) {
                 Tile man = nearbyTile(Mathf.mod(facingRot + a, 4));
-                if (man != null && backTile() != null && backTile() != man){
-                    if (man.build instanceof NeoplasmBuilding) {
-                        retry = 0;
-                        break;
-                    }
+                if (man != null && backTile() != null && backTile() != man
+                        && man.build instanceof NeoplasmBuilding) {
+                    retry = 0;
+                    break;
                 }
             }
 
+            // Try all three goals, starting with this Cord's current goal.
+            // An unready or blocked flowfield no longer stalls the entire infection.
+            int firstTask = (task >= PathfinderCustom.fieldCore && task <= PathfinderCustom.fieldOres)
+                    ? task : PathfinderCustom.fieldVent;
+            boolean placed = false;
 
-            // TODO better cordAI
-            task = (task != 0) ? task : PathfinderCustom.fieldVent;
-            Tile next = pathfind(task);
-
-
-            if (
-                    passable(next, true)
-            ) {
-                int rot = this.tile.relativeTo(next);
-                Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
-                Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                if (
-                        passable(nearRight, false)
-                        && passable(nearLeft, false)
-                ) {
-                    if (!CantReplace(next.block())) next.setBlock(RBlocks.cord, team);
-                    if (next.build != null && next.build instanceof CordBuild cordBuild) {
-                        cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
-                                Mathf.randomBoolean() ? PathfinderCustom.fieldOres : Mathf.randomBoolean() ? PathfinderCustom.fieldCore : PathfinderExtended.fieldVent;
-                        cordBuild.facingRot = rot;
-                        cordBuild.prev = this;
-                    }
-                    growRestart = 0;
+            for (int i = 0; i < 3 && !placed; i++) {
+                int targetTask = (firstTask + i) % 3;
+                Tile next = pathfind(targetTask);
+                if (placeCord(next, targetTask)) {
+                    task = targetTask;
+                    placed = true;
                 }
             }
+
+            // If no flowfield can provide a step, expand into any valid adjacent tile.
+            // This also handles maps with no vents/ores or with an uninitialized core field.
+            if (!placed) {
+                int startDirection = Mathf.random(0, 3);
+                for (int i = 0; i < 4 && !placed; i++) {
+                    Tile next = nearbyTile(Mathf.mod(startDirection + i, 4));
+                    placed = placeCord(next, firstTask);
+                }
+            }
+
+            if (placed) {
+                growRestart = 0;
+                NeoplasmBlock.recordSpread(team);
+            }
+
             super.growCord(block);
         }
 
