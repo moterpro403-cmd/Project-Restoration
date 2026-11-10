@@ -30,6 +30,8 @@ public class CausticBirthingPod extends NeoplasmBlock {
 
     public TextureRegion[] stages = new TextureRegion[4];
     public Color hatchColor = Pal.neoplasm2;
+    /** One-shot pods are used by the Heart's queued assault waves. */
+    public boolean oneShot;
 
     public CausticBirthingPod(String name) {
         super(name);
@@ -129,13 +131,14 @@ public class CausticBirthingPod extends NeoplasmBlock {
             unit.add();
 
             Fx.neoplasiaSmoke.at(x, y, hatchColor);
-            hatchColor.at(exit.worldx(), exit.worldy());
+            Fx.neoplasiaSmoke.at(exit.worldx(), exit.worldy(), hatchColor);
 
             progress = 0f;
             hatching = 0f;
             retryTimer = 0f;
             hatchFlash = 24f;
             currentBrood = null;
+            if (oneShot && tile != null) tile.setBlock(pipe, team);
             return true;
         }
 
