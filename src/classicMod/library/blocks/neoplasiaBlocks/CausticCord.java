@@ -96,6 +96,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         public int task = 0;
         private final float[] drawVertices = new float[24];
+        private float drillScanTimer;
+
 
         @Nullable
         public CordBuild prev;
@@ -246,26 +248,71 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 //if (!prev.ignorePath.contains(facingRot)) prev.ignorePath.add(facingRot);
             }
 
-            // A Cord that grows onto a floor-ore deposit becomes an extractor.
-            Item floorDrop = tile.drop();
-            if (floorDrop != null && CordCanDrill.contains(floorDrop)) {
-                tile.setBlock(RBlocks.neoplasiaDrill, team, rotation);
-                return;
+            // Check periodically for a valid 2x2 drill site around this Cord.
+            // The site may contain floor ore or have an ore-bearing wall on any side.
+            if (tile == null || tile == Vars.emptyTile || tile.build != this) return;
+            drillScanTimer += delta();
+            if (drillScanTimer >= 20f) {
+                drillScanTimer = 0f;
+                if (tryConvertToDrill()) return;
             }
+        }
 
-            // Preserve the original wall-ore extraction behavior.
-            this.block.nearbySide(tile.x, tile.y, Mathf.mod(facingRot, 4), 0, Tmp.p1);
-            int dx = (Geometry.d4x(facingRot) > 0) ? 1 : 0;
-            int dy = (Geometry.d4y(facingRot) > 0) ? 1 : 0;
-            Tile other = Vars.world.tile(Tmp.p1.x + dx, Tmp.p1.y + dy);
-            if (other != null && other.solid()) {
-                int spaces = calculateSpaces(drill.size, other.x, other.y);
-                Item drop = other.wallDrop();
-                if (drop != null && spaces >= drill.size * drill.size && CordCanDrill.contains(drop)) {
-                    tile.setBlock(RBlocks.neoplasiaDrill, team, rotation);
-                    return;
+
+        private boolean mineableDrillOre(Item item) {
+            return item != null && item.hardness <= drill.tier && CordCanDrill.contains(item);
+        }
+
+        /** Checks whether a 2x2 drill footprint can replace only air and Cords. */
+        private boolean drillAreaAvailable(Tile origin) {
+            for (int dy = 0; dy < drill.size; dy++) {
+                for (int dx = 0; dx < drill.size; dx++) {
+                    Tile candidate = Vars.world.tile(origin.x + dx, origin.y + dy);
+                    if (candidate == null) return false;
+                    Block block = candidate.block();
+                    if (block != Blocks.air && !(block instanceof CausticCord)) return false;
                 }
             }
+            return true;
+        }
+
+        /** Looks for floor ore under the footprint or wall ore along its perimeter. */
+        private boolean drillAreaHasOre(Tile origin) {
+            for (int dy = 0; dy < drill.size; dy++) {
+                for (int dx = 0; dx < drill.size; dx++) {
+                    Tile candidate = Vars.world.tile(origin.x + dx, origin.y + dy);
+                    if (candidate != null && mineableDrillOre(candidate.drop())) return true;
+                }
+            }
+
+            for (int dy = 0; dy < drill.size; dy++) {
+                for (int dx = 0; dx < drill.size; dx++) {
+                    Tile footprintTile = Vars.world.tile(origin.x + dx, origin.y + dy);
+                    if (footprintTile == null) continue;
+                    for (Point2 direction : Geometry.d4) {
+                        Tile wall = Vars.world.tile(footprintTile.x + direction.x, footprintTile.y + direction.y);
+                        if (wall != null && mineableDrillOre(wall.wallDrop())) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * The Cord tile can sit on any of the four cells of a 2x2 building.
+         * Trying all four origins lets the drill fit beside a wall ore deposit,
+         * regardless of which side the colony approached from.
+         */
+        private boolean tryConvertToDrill() {
+            int[][] offsets = {{0, 0}, {-1, 0}, {0, -1}, {-1, -1}};
+            for (int[] offset : offsets) {
+                Tile origin = Vars.world.tile(tile.x + offset[0], tile.y + offset[1]);
+                if (origin != null && drillAreaAvailable(origin) && drillAreaHasOre(origin)) {
+                    origin.setBlock(drill, team, rotation);
+                    return true;
+                }
+            }
+            return false;
         }
 
         public int getTotal(Item item, int size){
