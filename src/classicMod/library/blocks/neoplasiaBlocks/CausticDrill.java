@@ -57,7 +57,7 @@ public class CausticDrill extends NeoplasmBlock {
      */
     @Override
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
-        countOre(tile);
+        countOre(tile, rotation);
         return returnItem != null;
     }
 
@@ -71,7 +71,7 @@ public class CausticDrill extends NeoplasmBlock {
         return tile.drop();
     }
 
-    protected void countOre(Tile tile) {
+    protected void countOre(Tile tile, int drillRotation) {
         returnItem = null;
         returnCount = 0;
         oreCount.clear();
@@ -91,7 +91,7 @@ public class CausticDrill extends NeoplasmBlock {
         if (!foundFloorOre) {
             for (int r = 0; r < 4; r++) {
                 for (int i = 0; i < size; i++) {
-                    nearbySide(tile.x, tile.y, Mathf.mod(rotation + r, 4), i, Tmp.p1);
+                    nearbySide(tile.x, tile.y, Mathf.mod(drillRotation + r, 4), i, Tmp.p1);
                     Tile other = Vars.world.tile(Tmp.p1.x, Tmp.p1.y);
                     if (other != null && other.solid()) {
                         Item drop = other.wallDrop();
@@ -148,7 +148,7 @@ public class CausticDrill extends NeoplasmBlock {
         public void onProximityUpdate() {
             super.onProximityUpdate();
             Item previous = dominantItem;
-            CausticDrill.this.countOre(tile);
+            CausticDrill.this.countOre(tile, rotation);
             dominantItem = CausticDrill.this.returnItem;
             dominantItems = CausticDrill.this.returnCount;
             if (previous != dominantItem) progress = 0f;
