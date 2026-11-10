@@ -456,11 +456,29 @@ public class ClassicMod extends Mod {
 
         RMusic.load();
 
-        for (UnitType a : content.units()) {
-            if (a.controller instanceof CommandAI) {
-                if (a.flying) a.controller = u -> new ReplacementFlyingAI();
-                if (!a.flying) a.controller = u -> new ReplacementGroundAI();
+        // UnitType.controller is a factory, not a UnitController instance.
+        // Inspect the initialized sample after content initialization.
+        Events.on(EventType.ContentInitEvent.class, event -> {
+            for (UnitType type : content.units()) {
+                if (type.sample == null || type.controller == null) continue;
+
+                mindustry.game.Team previousTeam = type.sample.team;
+                boolean usesCommandAI;
+                try {
+                    type.sample.team = mindustry.game.Team.sharded;
+                    usesCommandAI = type.createController(type.sample) instanceof CommandAI;
+                } finally {
+                    type.sample.team = previousTeam;
+                }
+
+                if (usesCommandAI) {
+                    if (type.flying) {
+                        type.controller = u -> new ReplacementFlyingAI();
+                    } else {
+                        type.controller = u -> new ReplacementGroundAI();
+                    }
+                }
             }
-        }
+        });
     }
 }
