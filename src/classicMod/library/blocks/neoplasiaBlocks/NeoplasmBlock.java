@@ -37,7 +37,10 @@ public class NeoplasmBlock extends Block {
     }
 
     private static class SpreadControl {
-        float nextSpreadAt;
+        // A shared token bucket lets several active growth fronts spread at once
+        // while keeping the total expansion rate bounded.
+        float spreadCredits = 1f;
+        float lastSpreadUpdate;
         float nextSpawnAt;
         float nextCountCheck;
         float lastTime;
@@ -48,13 +51,15 @@ public class NeoplasmBlock extends Block {
         SpreadControl control = spreadControls.get(team);
         if (control == null) {
             control = new SpreadControl();
+            control.lastSpreadUpdate = Time.time;
             spreadControls.put(team, control);
         }
 
         float now = Time.time;
         // Also handle game-clock resets if the event order differs across modes.
         if (now < control.lastTime) {
-            control.nextSpreadAt = 0f;
+            control.spreadCredits = 1f;
+            control.lastSpreadUpdate = now;
             control.nextSpawnAt = 0f;
             control.nextCountCheck = 0f;
             control.structureCount = 0;
@@ -73,20 +78,40 @@ public class NeoplasmBlock extends Block {
         return control;
     }
 
-    private static float spreadCooldown(SpreadControl control) {
-        // 0.75s at the start, then +0.9s per structure, capped at 10s.
-        return Mathf.clamp(45f + control.structureCount * 0.9f, 45f, 600f);
+    private static float spreadRate(SpreadControl control) {
+        // Starts at 1.25 placements/second and rises with infection size,
+        // reaching a safe cap of 6 placements/second for large colonies.
+        return Mathf.clamp(1.25f + control.structureCount * 0.045f, 1.25f, 6f);
+    }
+
+    private static float spreadCapacity(SpreadControl control) {
+        // Larger colonies can briefly bank more growth, so blocked fronts
+        // can expand in a short burst once they find open ground.
+        return Mathf.clamp(1f + control.structureCount / 25f, 1f, 6f);
+    }
+
+    private static void refillSpreadCredits(SpreadControl control) {
+        float now = Time.time;
+        float elapsed = Math.max(0f, now - control.lastSpreadUpdate);
+        control.lastSpreadUpdate = now;
+        control.spreadCredits = Math.min(
+                spreadCapacity(control),
+                control.spreadCredits + elapsed * spreadRate(control) / 60f
+        );
     }
 
     protected static boolean canSpread(Team team) {
         if (team == null || Vars.net.client()) return false;
-        return Time.time >= controlFor(team).nextSpreadAt;
+        SpreadControl control = controlFor(team);
+        refillSpreadCredits(control);
+        return control.spreadCredits >= 1f;
     }
 
     protected static void recordSpread(Team team) {
         if (team == null || Vars.net.client()) return;
         SpreadControl control = controlFor(team);
-        control.nextSpreadAt = Time.time + spreadCooldown(control);
+        refillSpreadCredits(control);
+        if (control.spreadCredits >= 1f) control.spreadCredits -= 1f;
     }
 
     // Retained for compatibility with any older internal callers.
