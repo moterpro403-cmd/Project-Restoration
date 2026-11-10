@@ -57,7 +57,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
     @Override
     public void init() {
-        tiles = new TextureRegion[46];
+        // The bitmask maps to 47 sprites: cord-0 through cord-46.
+        tiles = new TextureRegion[47];
         for (int i = 0; i < tiles.length; i++) {
             tiles[i] = Core.atlas.find(name + "-" + i);
         }
@@ -94,6 +95,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         public int yscl;
 
         public int task = 0;
+        private final float[] drawVertices = new float[24];
 
         @Nullable
         public CordBuild prev;
@@ -457,54 +459,50 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         protected void drawAt(float x, float y, int bits, float rotation, Autotiler.SliceMode slice) {
             Draw.z(Layer.blockUnder);
 
-            //drawBeat(xscl, yscl); //TODO SMOOTH TRAILING
-            TextureRegion textureRegion = (sliced(Core.atlas.find(name + "-" + bits), slice));
-            float color = Draw.getColor().toFloatBits(); // gets current packed RGBA float
+            // Resolve the selected frame once; the atlas is already cached during init.
+            TextureRegion frame = bits >= 0 && bits < tiles.length && tiles[bits] != null
+                    ? tiles[bits] : Core.atlas.find(name + "-" + bits);
+            TextureRegion textureRegion = sliced(frame, slice);
+            float color = Draw.getColor().toFloatBits();
 
             float xs = (xscl > 0) ? xscl + ((beat - 1f) * 1) : xscl - ((beat - 1f) * 1);
             float ys = (yscl > 0) ? yscl + ((beat - 1f) * 1) : yscl - ((beat - 1f) * 1);
-            float w = (float) (textureRegion.width) * textureRegion.scl() * xs, h = (float) (textureRegion.height) * textureRegion.scl() * -ys;
+            float w = (float)textureRegion.width * textureRegion.scl() * xs;
+            float h = (float)textureRegion.height * textureRegion.scl() * -ys;
             float u = textureRegion.u, u2 = textureRegion.u2;
             float v = textureRegion.v, v2 = textureRegion.v2;
-            Draw.color(new Color(1.0F, 1.0F, 1.0F, 1.0F).lerp(beatColor, (beat - 1)));
+            Draw.color(beatScratch.set(Color.white).lerp(beatColor, Mathf.clamp(beat - 1f)));
             float x0 = x - w / 2f;
             float y0 = y - h / 2f;
 
             boolean flipY = !(facingRot == 1);
             boolean flipX = !(facingRot == 3);
 
-            float stretchFactor = 6f; // or whatever feels right
+            float stretchFactor = 6f;
             float stretchFront = (((front() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchBack = (((back() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchLeft = (((left() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchRight = (((right() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
-            float[] vertices = {
-                    // bottom-left
-                    x0 - ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f),
-                    y0 + ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f)
-                    , color, u, v, 0f,
 
-                    // bottom-right
-                    x0 + w + ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f),
-                    y0 + ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : (back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f)
-                    , color, u2, v, 0f,
+            float[] vertices = drawVertices;
+            vertices[0] = x0 - ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f);
+            vertices[1] = y0 + ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f);
+            vertices[2] = color; vertices[3] = u; vertices[4] = v; vertices[5] = 0f;
 
-                    // top-right
-                    x0 + w + ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f),
-                    y0 + h - ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : ((back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f))
-                    , color, u2, v2, 0f,
+            vertices[6] = x0 + w + ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f);
+            vertices[7] = y0 + ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : (back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f);
+            vertices[8] = color; vertices[9] = u2; vertices[10] = v; vertices[11] = 0f;
 
-                    // top-left
-                    x0 - ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f),
-                    y0 + h - ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f)
-                    , color, u, v2, 0f
-            };
-            Draw.vert((sliced(Core.atlas.find(name + "-" + bits), slice)).texture, vertices, 0, vertices.length);
-            //Draw.rect(sliced(Core.atlas.find(name + "-" + bits), slice), x, y, rotation);
+            vertices[12] = x0 + w + ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f);
+            vertices[13] = y0 + h - ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : ((back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f));
+            vertices[14] = color; vertices[15] = u2; vertices[16] = v2; vertices[17] = 0f;
 
-            // Reset drawing properties
-            Draw.color();
-            Draw.scl();
+            vertices[18] = x0 - ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f);
+            vertices[19] = y0 + h - ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f);
+            vertices[20] = color; vertices[21] = u; vertices[22] = v2; vertices[23] = 0f;
+
+            Draw.vert(textureRegion.texture, vertices, 0, vertices.length);
+            Draw.reset();
         }
 
         public void onProximityUpdate() {
