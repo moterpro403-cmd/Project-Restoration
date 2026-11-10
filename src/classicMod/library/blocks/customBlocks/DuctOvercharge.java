@@ -1,3 +1,4 @@
+
 package classicMod.library.blocks.customBlocks;
 
 import arc.Core;
@@ -16,6 +17,9 @@ import mindustry.world.meta.StatUnit;
 import static mindustry.Vars.*;
 
 public class DuctOvercharge extends Duct {
+
+    // Restored transparency color for Mindustry v8
+    public Color transparentColor = Color.valueOf("66666619");
 
     public TextureRegion[] glowRegions;
     public float glowAlpha = 1f;
@@ -45,8 +49,8 @@ public class DuctOvercharge extends Duct {
         stats.add(ExtendedStat.itemsMovedBoost, 60f / (speed / (1f + (baseEfficiency * 2f))), StatUnit.itemsSecond);
     }
 
-
     public class DuctOverchargeBuild extends DuctBuild {
+
         @Override
         public void draw() {
             float rotation = rotdeg();
@@ -54,11 +58,14 @@ public class DuctOvercharge extends Duct {
 
             //draw extra ducts facing this one for tiling purposes
             for (int i = 0; i < 4; i++) {
-                if((blending & (1 << i)) != 0) {
+                if ((blending & (1 << i)) != 0) {
                     int dir = r - i;
                     float rot = i == 0 ? rotation : dir * 90;
-                    //var near = nearby(dir);
-                    drawAtWithGlow(x + Geometry.d4x(dir) * tilesize * 0.75f, y + Geometry.d4y(dir) * tilesize * 0.75f, 0, rot, i != 0 ? SliceMode.bottom : SliceMode.top);
+                    drawAtWithGlow(
+                        x + Geometry.d4x(dir) * tilesize * 0.75f,
+                        y + Geometry.d4y(dir) * tilesize * 0.75f,
+                        0, rot, i != 0 ? SliceMode.bottom : SliceMode.top
+                    );
                 }
             }
 
@@ -66,15 +73,13 @@ public class DuctOvercharge extends Duct {
             if (current != null) {
                 Draw.z(Layer.blockUnder + 0.1f);
                 Tmp.v1.set(Geometry.d4x(recDir) * tilesize / 2f, Geometry.d4y(recDir) * tilesize / 2f)
-                        .lerp(Geometry.d4x(r) * tilesize / 2f, Geometry.d4y(r) * tilesize / 2f,
-                                Mathf.clamp((progress + 1f) / 2f));
+                    .lerp(Geometry.d4x(r) * tilesize / 2f, Geometry.d4y(r) * tilesize / 2f,
+                        Mathf.clamp((progress + 1f) / 2f));
 
                 Draw.rect(current.fullIcon, x + Tmp.v1.x, y + Tmp.v1.y, itemSize, itemSize);
             }
 
             Draw.scl(xscl, yscl);
-            //drawAt(x, y, blendbits, rotation, SliceMode.none);
-
             drawAtWithGlow(x, y, blendbits, rotation, SliceMode.none);
             Draw.reset();
         }
@@ -89,7 +94,9 @@ public class DuctOvercharge extends Duct {
             Draw.color();
             Draw.rect(sliced(topRegions[bits], slice), x, y, rotation);
 
-            if (sliced(Core.atlas.find(name + "-glow-" + bits), slice).found() && power != null && power.status > 0f && slice.equals(SliceMode.none)) {
+            if (sliced(Core.atlas.find(name + "-glow-" + bits), slice).found()
+                && power != null && power.status > 0f && slice.equals(SliceMode.none)) {
+
                 Draw.z(Layer.blockAdditive);
                 Draw.color(glowColor, glowAlpha * power.status);
                 Draw.blend(Blending.additive);
@@ -107,3 +114,4 @@ public class DuctOvercharge extends Duct {
         }
     }
 }
+
