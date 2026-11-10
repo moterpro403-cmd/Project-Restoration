@@ -65,8 +65,7 @@ public class NewAccelerator extends Block {
     //public double lightningLaunchChance = 0.8;
 
     public float thrusterLength = 14f / 4f;
-    //TODO dynamic
-    boolean launchingStartup = false, once = false, StartAnimation = false;
+    // Launch animation/control state is stored per building in NewAcceleratorBuild.
 
     public NewAccelerator(String name) {
         super(name);
@@ -158,8 +157,9 @@ public class NewAccelerator extends Block {
         float originMinZoom, originMaxZoom;
         int stageLaunch = 0;
         boolean reset = true;
+        boolean launchingStartup = false, once = false, StartAnimation = false;
         protected float cloudSeed = Mathf.random(1f);
-        float cameraScl = renderer.getDisplayScale();
+        float cameraScl = (!headless && renderer != null) ? renderer.getDisplayScale() : 1f;
 
         @Override
         public boolean shouldAutoTarget() {
