@@ -25,6 +25,7 @@ public class NeoplasmBlock extends Block {
 
     public boolean source = false;
     public Color beatColor = Color.valueOf("cd6240");
+    protected static final Color beatScratch = new Color();
 
     public boolean isCord = false;
 
@@ -60,6 +61,7 @@ public class NeoplasmBlock extends Block {
         public void draw() {
             drawBeat(1, 1);
             super.draw();
+            Draw.reset();
         }
 
         public boolean isSource(){
@@ -79,7 +81,7 @@ public class NeoplasmBlock extends Block {
             float xs = (xscl > 0) ? xscl + ((beat - 1f) * offsetSclBeat) : xscl - ((beat - 1f) * offsetSclBeat);
             float ys = (yscl > 0) ? yscl + ((beat - 1f) * offsetSclBeat) : yscl - ((beat - 1f) * offsetSclBeat);
             Draw.scl(xs, ys);
-            Draw.color(new Color(1.0F, 1.0F, 1.0F, 1.0F).lerp(beatColor, (beat - 1)));
+            Draw.color(beatScratch.set(Color.white).lerp(beatColor, Mathf.clamp(beat - 1f)));
         }
 
         public NeoplasmBuilding getNeoplasm(Building building){
