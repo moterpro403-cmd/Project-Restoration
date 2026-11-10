@@ -57,6 +57,7 @@ public class CausticSpawner extends NeoplasmBlock {
 
             drawBeat(1 + sclOffset, 1 + sclOffset, 0.25f);
             if (topRegion.found()) Draw.rect(topRegion, x, y);
+            Draw.reset();
         }
 
         public void updateEfficiency(){
