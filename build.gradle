@@ -4,16 +4,15 @@ version '1.0'
 
 sourceSets.main.java.srcDirs = ["src"]
 
-repositories{
+repositories {
     mavenCentral()
-    maven{ url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }
-    maven{ url 'https://www.jitpack.io' }
-java{
+    maven { url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }
+    maven { url 'https://www.jitpack.io' }
+}
 
+java {
     targetCompatibility = JavaVersion.VERSION_17
-
     sourceCompatibility = JavaVersion.VERSION_17
-
 }
 
 ext{
