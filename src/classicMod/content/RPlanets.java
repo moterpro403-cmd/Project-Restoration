@@ -35,7 +35,7 @@ public class RPlanets {
             ruleSetter = r -> {
                 r.waveTeam = Team.blue;
                 r.placeRangeCheck = false;
-                r.showSpawns = false;
+                r.hideSpawns = true;
             };
         }};
     }
