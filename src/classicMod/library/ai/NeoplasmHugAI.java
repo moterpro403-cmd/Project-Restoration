@@ -52,16 +52,13 @@ public class NeoplasmHugAI extends NeoplasmAIController {
 
             // Reposition away from remembered danger while maintaining the target.
             if (!avoidNearbyDanger(destination)) {
-                boolean blocked = World.raycast(unit.tileX(), unit.tileY(), target.tileX(), target.tileY(), (x, y) -> {
-                    for (Point2 point : Geometry.d4c) {
-                        if (!unit.canPass(x + point.x, y + point.y)) return true;
-                    }
-                    return false;
-                });
+                boolean blocked = World.raycast(unit.tileX(), unit.tileY(), target.tileX(), target.tileY(),
+                        (x, y) -> !unit.canPass(x, y));
 
                 if (blocked) {
-                    // Try a local detour first; fall back to the enemy-core field.
-                    if (!moveAroundBlockedTarget(destination)) pathfind(Pathfinder.fieldCore);
+                    // Use the flowfield's complete route around walls. A greedy
+                    // neighbor choice caused units to zig-zag against corners.
+                    pathfind(Pathfinder.fieldCore);
                 } else {
                     float targetSize = target instanceof Sized sized ? sized.hitSize() : 8f;
                     float contactDistance = (unit.hitSize + targetSize) * 0.5f + 2f;
