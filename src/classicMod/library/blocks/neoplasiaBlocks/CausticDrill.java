@@ -62,7 +62,7 @@ public class CausticDrill extends NeoplasmBlock {
         Item wall = tile.wallDrop();
         if (canMineWallDrop(wall)) return wall;
 
-        if (tile.block() == Blocks.air || tile.block() instanceof CausticCord) {
+        if (tile.block() == Blocks.air || tile.block() instanceof CausticCord || tile.block() == this) {
             Item floor = tile.drop();
             if (canMineWallDrop(floor)) return floor;
         }
