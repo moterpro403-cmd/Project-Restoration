@@ -5,6 +5,7 @@ import arc.graphics.Color;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
+import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.*;
 import arc.util.io.*;
@@ -13,7 +14,9 @@ import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.entities.Puddles;
 import mindustry.game.EventType;
+import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
 import mindustry.type.Liquid;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
@@ -22,6 +25,54 @@ import mindustry.world.meta.Attribute;
 import static classicMod.content.RVars.CordCanDrill;
 
 public class NeoplasmBlock extends Block {
+
+    // One shared spread timer per team prevents every connected Cord from
+    // expanding independently. Bigger infections naturally spread more slowly.
+    private static final ObjectMap<Team, SpreadControl> spreadControls = new ObjectMap<>();
+
+    private static class SpreadControl {
+        float nextSpreadAt;
+        float nextCountCheck;
+        float lastTime;
+        int structureCount;
+    }
+
+    protected static boolean trySpread(Team team) {
+        if (team == null || Vars.net.client()) return false;
+
+        SpreadControl control = spreadControls.get(team);
+        if (control == null) {
+            control = new SpreadControl();
+            spreadControls.put(team, control);
+        }
+
+        float now = Time.time;
+        // Reset cached timers if the game clock restarts after loading a new match.
+        if (now < control.lastTime) {
+            control.nextSpreadAt = 0f;
+            control.nextCountCheck = 0f;
+            control.structureCount = 0;
+        }
+        control.lastTime = now;
+
+        // Counting is cached for one second to avoid scanning every building on every pulse.
+        if (now >= control.nextCountCheck) {
+            int count = 0;
+            for (Building build : Groups.build) {
+                if (build.team == team && build instanceof NeoplasmBuilding) count++;
+            }
+            control.structureCount = count;
+            control.nextCountCheck = now + 60f;
+        }
+
+        // 0.75s at the start, then +0.9s for each existing Neoplasm structure,
+        // capped at 10s so the infection can still advance on very large maps.
+        float cooldown = Mathf.clamp(45f + control.structureCount * 0.9f, 45f, 600f);
+        if (now < control.nextSpreadAt) return false;
+
+        control.nextSpreadAt = now + cooldown;
+        return true;
+    }
 
     public boolean source = false;
     public Color beatColor = Color.valueOf("cd6240");
@@ -210,6 +261,10 @@ public class NeoplasmBlock extends Block {
 
         public void growCord(Block block){
             if (!isCord){
+                if (!trySpread(team)) {
+                    grow = false;
+                    return;
+                }
                 int rand = Mathf.random(0, proximityTiles.size);
                 Tile tile = proximityTiles.get(rand % proximityTiles.size);
                 if (tile != null) {
