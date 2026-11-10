@@ -31,6 +31,7 @@ public class NeoplasmAIController extends AIController {
     // Use ObjectSet for fast lookup
     public ObjectSet<Unit> knownNeoplasms = new ObjectSet<>();
     public Seq<Unit> neoplasmGroup = new Seq<>();
+    private final Seq<Unit> toRemove = new Seq<>();
 
     @Override
     public void updateUnit() {
@@ -46,7 +47,8 @@ public class NeoplasmAIController extends AIController {
             neoplasmGroup.add(neo);
         }
 
-        Seq<Unit> toRemove = new Seq<>();
+        // Reuse the scratch sequence instead of allocating one for every AI tick.
+        toRemove.clear();
 
         for (var neoplasm : neoplasmGroup) {
             if (neoplasm == null || !neoplasm.dead) continue;
@@ -66,6 +68,7 @@ public class NeoplasmAIController extends AIController {
         }
 
         neoplasmGroup.removeAll(toRemove);
+        toRemove.clear();
 
 
         if (rerouteCooldown > 0) rerouteCooldown -= Time.delta;
@@ -90,8 +93,19 @@ public class NeoplasmAIController extends AIController {
     }
 
     public Tile closestDanger(){
-        if (DodgeTile.size <= 0 || DodgeTile.isEmpty()) return null;
-        return DodgeTile.copy().sort(tile1 -> tile1.dst(this.unit)).get(0);
+        if (DodgeTile.isEmpty()) return null;
+
+        Tile closest = null;
+        float closestDistance = Float.MAX_VALUE;
+        for (Tile tile : DodgeTile) {
+            if (tile == null) continue;
+            float distance = tile.dst(this.unit);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closest = tile;
+            }
+        }
+        return closest;
     }
 
     public Tile getClosestTarget(int range, Tile closestDanger, Tile targetTile, Unit unit){
@@ -110,12 +124,24 @@ public class NeoplasmAIController extends AIController {
             }
         }
 
-        if (avaliableLand.size <= 0) return null;
-        avaliableLand.removeAll(tile -> closestDanger.dst(tile) < 80);
-        avaliableLand.removeAll(tile -> this.unit.dst(tile) < 10 && this.unit.dst(tile) > 100);
-        avaliableLand.sort(tile -> tile.dst(targetTile));
+        if (avaliableLand.isEmpty()) return null;
+        if (closestDanger != null) {
+            avaliableLand.removeAll(tile -> closestDanger.dst(tile) < 80f);
+        }
+        // Exclude tiles that are either immediately adjacent or beyond the escape radius.
+        // The previous AND condition could never be true for a finite distance.
+        avaliableLand.removeAll(tile -> {
+            float distance = this.unit.dst(tile);
+            return distance < 10f || distance > 100f;
+        });
+        Tile destination = targetTile != null ? targetTile : unit.tileOn();
+        if (destination == null) {
+            avaliableLand.sort(tile -> tile.dst(unit));
+        } else {
+            avaliableLand.sort(tile -> tile.dst(destination));
+        }
 
-        if (avaliableLand.size <= 0) return null;
+        if (avaliableLand.isEmpty()) return null;
         return avaliableLand.first();
     }
 
