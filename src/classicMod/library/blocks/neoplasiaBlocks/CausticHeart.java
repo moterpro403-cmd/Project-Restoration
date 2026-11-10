@@ -61,6 +61,7 @@ public class CausticHeart extends NeoplasmBlock {
         // Attack waves are separate from the Heart's original infection/blob behavior.
         private float attackWaveTimer;
         private int attackWave;
+        private final Seq<UnitType> pendingAttackers = new Seq<>();
 
         private boolean isWaveAttacker(UnitType type) {
             return type == RUnitTypes.miserable
@@ -128,23 +129,35 @@ public class CausticHeart extends NeoplasmBlock {
 
             for (int i = 0; i < amount; i++) {
                 UnitType type = waveUnit(attackWave, i);
-                if (type == null || !Units.canCreate(Team.neoplastic, type)) continue;
-
-                Tile spawnTile = findAttackSpawnTile(type.flying);
-                if (spawnTile == null) break;
-
-                Unit attacker = type.create(Team.neoplastic);
-                attacker.set(spawnTile.worldx(), spawnTile.worldy());
-                attacker.rotation(90f);
-                attacker.add();
+                if (type != null) pendingAttackers.add(type);
             }
+        }
+
+        private void spawnPendingAttackers() {
+            if (pendingAttackers.isEmpty()) return;
+
+            UnitType type = pendingAttackers.first();
+            if (type == null) {
+                pendingAttackers.remove(0);
+                return;
+            }
+            if (!Units.canCreate(Team.neoplastic, type)) return;
+
+            Tile spawnTile = findAttackSpawnTile(type.flying);
+            if (spawnTile == null || !NeoplasmBlock.trySpawn(Team.neoplastic)) return;
+
+            Unit attacker = type.create(Team.neoplastic);
+            attacker.set(spawnTile.worldx(), spawnTile.worldy());
+            attacker.rotation(90f);
+            attacker.add();
+            pendingAttackers.remove(0);
         }
 
         @Override
         public void updateBeat() {
 
             if (Mathf.chance(0.25) && getClosestVent() != null){
-                if (!Vars.net.client() && canCreate(team, unitType)) {
+                if (!Vars.net.client() && canCreate(team, unitType) && NeoplasmBlock.trySpawn(team)) {
                     unit = unitType.create(team);
                     unit.set(this);
                     unit.rotation(90f);
@@ -177,6 +190,7 @@ public class CausticHeart extends NeoplasmBlock {
                         growCord(pipe);
                     }
                     updateAttackWaves();
+                    spawnPendingAttackers();
                 }
             }
         }
