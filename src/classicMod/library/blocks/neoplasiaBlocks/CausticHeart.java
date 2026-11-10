@@ -37,6 +37,13 @@ public class CausticHeart extends NeoplasmBlock {
         unitCap = 50;
     }
 
+    @Override
+    public void setStats() {
+        super.setStats();
+        stats.add(Stat.output, "Immitis Stalker, Kalyx, Hydroclast, Rift Squid, Pallium");
+        stats.add(Stat.productionTime, 45f, StatUnit.seconds);
+    }
+
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
         return sumAttribute(attribute, tile.x, tile.y) > minEfficiency;
     }
@@ -114,12 +121,13 @@ public class CausticHeart extends NeoplasmBlock {
                     default -> RUnitTypes.kalyx;
                 };
             }
-            return switch (index % 4) {
-                case 0 -> RUnitTypes.pallium;
-                case 1 -> RUnitTypes.hydroBomber;
-                case 2 -> RUnitTypes.squid;
-                default -> RUnitTypes.kalyx;
-            };
+            // Tier-weighted selection: the heavy Pallium is deliberately rare,
+            // while the bomber is the common late-wave attacker.
+            int pick = Math.floorMod(attackWave * 7 + index * 3, 12);
+            if (pick == 0) return RUnitTypes.pallium;
+            if (pick <= 5) return RUnitTypes.hydroBomber;
+            if (pick <= 8) return RUnitTypes.squid;
+            return RUnitTypes.kalyx;
         }
 
         private Tile findAttackSpawnTile(boolean flying) {
