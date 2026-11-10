@@ -9,6 +9,7 @@ import arc.scene.ui.layout.Table;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.io.*;
+import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.Team;
@@ -25,6 +26,14 @@ public class Teleporter extends Block{
     protected static final Color[] selection = new Color[]{Color.royal, Color.orange, Color.scarlet, Color.forest, Color.purple, Color.gold, Color.pink, Color.black};
     protected static final ObjectSet<TeleporterBuild>[][] teleporters;
     protected float powerUse = 0.8f;
+
+    private static boolean validToggle(int toggle){
+        return toggle >= 0 && toggle < selection.length;
+    }
+
+    private static boolean validTeam(Team team){
+        return team != null && team.id >= 0 && team.id < teleporters.length;
+    }
     protected TextureRegion blankRegion;
 
     static{
@@ -47,14 +56,19 @@ public class Teleporter extends Block{
             for(int i = 0; i < teleporters.length; i++){
                 for(int j = 0; j < teleporters[i].length; j++) teleporters[i][j].clear();
             }
+            // Rebuild the registry after saved buildings have been read.
+            for(mindustry.world.Tile tile : Vars.world.tiles){
+                if(tile.build instanceof TeleporterBuild build) build.registerChannel();
+            }
         });
         config(Integer.class, (TeleporterBuild build, Integer value) -> {
-            if(build.toggle != -1) teleporters[build.team.id][build.toggle].remove(build);
-            if(value != -1) teleporters[build.team.id][value].add(build);
+            if(value == null || (value != -1 && !validToggle(value))) return;
+            if(validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
+            if(validTeam(build.team) && validToggle(value)) teleporters[build.team.id][value].add(build);
             build.toggle = value;
         });
         configClear((TeleporterBuild build) -> {
-            if(build.toggle != -1) teleporters[build.team.id][build.toggle].remove(build);
+            if(validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
             build.toggle = -1;
         });
     }
