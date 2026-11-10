@@ -34,6 +34,29 @@ public class NeoplasmAIController extends AIController {
     private final Seq<Unit> toRemove = new Seq<>();
 
     @Override
+    public void updateTargeting() {
+        if (unit.hasWeapons()) {
+            super.updateTargeting();
+            return;
+        }
+
+        // Weaponless crawlers still need targets; the base AI only retargets
+        // from updateWeapons(), which is skipped when a unit has no weapons.
+        if (retarget()) {
+            target = findMainTarget(
+                    unit.x, unit.y,
+                    Math.max(unit.range(), 240f),
+                    unit.type.targetAir, unit.type.targetGround
+            );
+        }
+
+        if (target != null && invalid(target)) {
+            target = null;
+            targetInvalidated();
+        }
+    }
+
+    @Override
     public void updateUnit() {
         // Look for nearby untracked neoplasms
         Unit neo = Units.closest(unit.team, unit.x, unit.y, u ->
@@ -109,40 +132,78 @@ public class NeoplasmAIController extends AIController {
     }
 
     public Tile getClosestTarget(int range, Tile closestDanger, Tile targetTile, Unit unit){
-        int mid = Mathf.floor((float) range / 2);
-        Seq<Tile> avaliableLand = new Seq<>();
+        int radius = Math.max(2, Mathf.floor(range / 2f));
+        Seq<Tile> availableLand = new Seq<>();
 
-        for (int y = -mid; y < range; y++){
-            for (int x = -mid; x < range; x++){
-                Tile tile = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
-                if (
-                        tile != null
-                                && tile.block() == Blocks.air
-                                && tile.floor() != null
-                                && !tile.floor().isLiquid
-                ) avaliableLand.add(tile);
+        // Search symmetrically around the unit; the old loop searched much
+        // farther to the right/down than to the left/up.
+        for (int y = -radius; y <= radius; y++) {
+            for (int x = -radius; x <= radius; x++) {
+                Tile candidate = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
+                if (candidate == null
+                        || candidate.block() != Blocks.air
+                        || candidate.floor() == null
+                        || candidate.floor().isLiquid) continue;
+
+                float distanceFromUnit = unit.dst(candidate);
+                if (distanceFromUnit < 10f || distanceFromUnit > 140f) continue;
+                if (closestDanger != null && closestDanger.dst(candidate) < 80f) continue;
+                availableLand.add(candidate);
             }
         }
 
-        if (avaliableLand.isEmpty()) return null;
-        if (closestDanger != null) {
-            avaliableLand.removeAll(tile -> closestDanger.dst(tile) < 80f);
-        }
-        // Exclude tiles that are either immediately adjacent or beyond the escape radius.
-        // The previous AND condition could never be true for a finite distance.
-        avaliableLand.removeAll(tile -> {
-            float distance = this.unit.dst(tile);
-            return distance < 10f || distance > 100f;
-        });
+        if (availableLand.isEmpty()) return null;
         Tile destination = targetTile != null ? targetTile : unit.tileOn();
-        if (destination == null) {
-            avaliableLand.sort(tile -> tile.dst(unit));
-        } else {
-            avaliableLand.sort(tile -> tile.dst(destination));
+        if (destination == null) return availableLand.first();
+
+        availableLand.sort(candidate -> {
+            float travelCost = candidate.dst(unit) * 0.15f;
+            float dangerBonus = closestDanger == null ? 0f : Math.min(closestDanger.dst(candidate), 160f) * 0.05f;
+            return candidate.dst(destination) + travelCost - dangerBonus;
+        });
+        return availableLand.first();
+    }
+
+    /** Moves away from a remembered death zone before resuming the attack route. */
+    protected boolean avoidNearbyDanger(Tile destination) {
+        Tile current = unit.tileOn();
+        Tile danger = closestDanger();
+        if (current == null || danger == null || danger.dst(current) >= 80f) return false;
+
+        Tile safe = getClosestTarget(15, danger, destination, unit);
+        if (safe == null) safe = getEdgeEscapeTile();
+
+        if (safe == null || safe == current) {
+            DodgeTile.remove(danger);
+            return false;
         }
 
-        if (avaliableLand.isEmpty()) return null;
-        return avaliableLand.first();
+        unit.movePref(vec.set(safe.worldx(), safe.worldy()).sub(unit).limit(unit.speed()));
+        return true;
+    }
+
+    /** Picks a passable neighboring tile that reduces distance to a blocked target. */
+    protected boolean moveAroundBlockedTarget(Tile destination) {
+        Tile current = unit.tileOn();
+        if (current == null || destination == null) return false;
+
+        Tile best = null;
+        float bestScore = Float.MAX_VALUE;
+        for (Point2 offset : Geometry.d8) {
+            Tile next = Vars.world.tile(current.x + offset.x, current.y + offset.y);
+            if (next == null || !unit.canPass(next.x, next.y) || DodgeTile.contains(next)) continue;
+
+            float score = next.dst(destination) + current.dst(next) * 0.2f;
+            if (next.dangerous()) score += 32f;
+            if (score < bestScore) {
+                bestScore = score;
+                best = next;
+            }
+        }
+
+        if (best == null) return false;
+        unit.movePref(vec.set(best.worldx(), best.worldy()).sub(unit).limit(unit.speed()));
+        return true;
     }
 
     @Nullable
@@ -199,42 +260,32 @@ public class NeoplasmAIController extends AIController {
         Tile tile = this.unit.tileOn();
         if (tile == null) return;
 
-        // Attempt to get a pathfinding target tile avoiding DodgeTile
-        Tile targetTile = RVars.pathfinderCustom.getTargetTileDodge(
-                tile,
-                RVars.pathfinderCustom.getField(this.unit.team, costType, pathTarget),
-                DodgeTile
-        );
-
-        Tile nearDanger = closestDanger();
-
-        // Try rerouting if near danger
-        if (nearDanger != null) {
-            float distance = nearDanger.dst(tile);
-            if (distance < 80f) {
-                Tile safeTarget = getClosestTarget(15, nearDanger, targetTile, unit);
-                if (safeTarget != null) {
-                    targetTile = safeTarget;
-                } else {
-                    // Fallback: move to tile on edge of danger zone
-                    targetTile = getEdgeEscapeTile();
-                }
-
-                // Optional: remove the danger if no alternative found
-                if (targetTile == null) {
-                    DodgeTile.remove(nearDanger);
-                }
-            }
+        if (RVars.pathfinderCustom == null) {
+            super.pathfind(pathTarget);
+            return;
         }
 
-        if (targetTile != null && tile != targetTile) {
-            // Only move if it's a valid move (don't path to self)
-            if (costType != 2 || targetTile.floor().isLiquid) {
-                this.unit.movePref(vec.trns(
-                        this.unit.angleTo(targetTile.worldx(), targetTile.worldy()),
-                        this.unit.speed()
-                ));
-            }
+        var field = RVars.pathfinderCustom.getField(this.unit.team, costType, pathTarget);
+        if (field == null) {
+            super.pathfind(pathTarget);
+            return;
+        }
+
+        // Ask the custom field for a route that avoids remembered death zones.
+        Tile targetTile = RVars.pathfinderCustom.getTargetTileDodge(tile, field, DodgeTile);
+        if (targetTile == null || targetTile == tile) {
+            super.pathfind(pathTarget);
+            return;
+        }
+
+        if (unit.canPass(targetTile.x, targetTile.y)) {
+            unit.movePref(vec.trns(
+                    unit.angleTo(targetTile.worldx(), targetTile.worldy()),
+                    unit.speed()
+            ));
+        } else {
+            // If the flowfield step is blocked, attempt a local passable sidestep.
+            moveAroundBlockedTarget(targetTile);
         }
     }
 }
