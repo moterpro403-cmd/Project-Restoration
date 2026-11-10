@@ -34,6 +34,14 @@ public class WarpGate extends Block {
     protected static final Color[] selection = new Color[]{Color.royal, Color.orange, Color.scarlet, Color.forest, Color.purple, Color.gold, Color.pink, Color.white};
     protected static final ObjectSet<WarpGate.WarpGateBuild>[][] teleporters;
 
+    private static boolean validToggle(int toggle) {
+        return toggle >= 0 && toggle < selection.length;
+    }
+
+    private static boolean validTeam(Team team) {
+        return team != null && team.id >= 0 && team.id < teleporters.length;
+    }
+
     static {
         teleporters = new ObjectSet[Team.baseTeams.length][selection.length];
         for (int i = 0; i < Team.baseTeams.length; i++) {
@@ -67,14 +75,24 @@ public class WarpGate extends Block {
         unloadable = false;
         hasItems = true;
 
-        config(Integer.class, (WarpGate.WarpGateBuild build, Integer value) -> {
-            if (build.toggle != -1) if (teleporters[build.team.id][build.toggle].contains(build)) teleporters[build.team.id][build.toggle].remove(build);
-            if (value != -1) teleporters[build.team.id][value].add(build);
-            build.toggle = value;
+        Events.on(mindustry.game.EventType.WorldLoadEvent.class, event -> {
+            for (ObjectSet<WarpGate.WarpGateBuild>[] teamChannels : teleporters) {
+                for (ObjectSet<WarpGate.WarpGateBuild> channel : teamChannels) channel.clear();
+            }
+            // Rebuild the link registry after saved buildings have been read.
+            for (Tile tile : Vars.world.tiles) {
+                if (tile.build instanceof WarpGate.WarpGateBuild build) build.registerLoadedChannel();
+            }
+        });
 
+        config(Integer.class, (WarpGate.WarpGateBuild build, Integer value) -> {
+            if (value == null || (value != -1 && !validToggle(value))) return;
+            if (validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
+            if (validTeam(build.team) && validToggle(value)) teleporters[build.team.id][value].add(build);
+            build.toggle = value;
         });
         configClear((WarpGate.WarpGateBuild build) -> {
-            if (teleporters[build.team.id][build.toggle].contains(build) && build.toggle != -1) teleporters[build.team.id][build.toggle].remove(build);
+            if (validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
             build.toggle = -1;
         });
     }
@@ -143,6 +161,19 @@ public class WarpGate extends Block {
         protected WarpGate.WarpGateBuild target;
         protected Team previousTeam;
         protected boolean firstTime = true;
+
+        private void registerLoadedChannel() {
+            if (!validToggle(toggle) || !validTeam(team)) {
+                toggle = -1;
+                previousTeam = team;
+                return;
+            }
+            if (previousTeam != null && previousTeam != team && validTeam(previousTeam)) {
+                teleporters[previousTeam.id][toggle].remove(this);
+            }
+            teleporters[team.id][toggle].add(this);
+            previousTeam = team;
+        }
         /**
          * is this specific building avaliable and able to transport
          **/
@@ -168,7 +199,7 @@ public class WarpGate extends Block {
         @Override
         public void draw() {
             super.draw();
-            if (toggle != -1) {
+            if (validToggle(toggle)) {
                 Draw.color(selection[toggle]);
                 Draw.rect(blankRegion, x, y);
             }
@@ -180,8 +211,8 @@ public class WarpGate extends Block {
             float rad = activeScl;
             float radMin = 0.01f;
 
-            if (rad <= radMin && toggle == -1) return;
-            if (rad >= radMin && toggle != -1) {
+            if (rad <= radMin && !validToggle(toggle)) return;
+            if (rad >= radMin && validToggle(toggle)) {
 
                 Draw.colorMul(selection[toggle], 0.7f);
 
@@ -217,7 +248,7 @@ public class WarpGate extends Block {
 
         @Override
         public void updateTile() {
-            if (efficiency > 0 && toggle != -1) {
+            if (efficiency > 0 && validToggle(toggle)) {
                 if (firstTime) {
                     activateEffect.at(this.x, this.y, selection[toggle]);
                     firstTime = false;
@@ -242,7 +273,7 @@ public class WarpGate extends Block {
                         }
                         if (other != null) duration += getProgressIncrease(60f);
                         if (duration >= 1f) {
-                            if (this.items.total() <= 0 || toggle == -1) {
+                            if (this.items.total() <= 0 || !validToggle(toggle)) {
                                 teleProgress %= 1f;
                                 duration = 0f;
                                 teleporting = false;
