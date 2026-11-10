@@ -58,6 +58,88 @@ public class CausticHeart extends NeoplasmBlock {
             return team.data().countType(type) < unitCap && !type.isBanned();
         }
 
+        // Attack waves are separate from the Heart's original infection/blob behavior.
+        private float attackWaveTimer;
+        private int attackWave;
+
+        private boolean isWaveAttacker(UnitType type) {
+            return type == RUnitTypes.miserable
+                    || type == RUnitTypes.kalyx
+                    || type == RUnitTypes.hydroBomber
+                    || type == RUnitTypes.squid
+                    || type == RUnitTypes.pallium;
+        }
+
+        private int countWaveAttackers() {
+            int count = 0;
+            for (Unit other : Groups.unit) {
+                if (!other.dead && other.team == Team.neoplastic && isWaveAttacker(other.type)) count++;
+            }
+            return count;
+        }
+
+        private UnitType waveUnit(int wave, int index) {
+            if (wave <= 2) return RUnitTypes.miserable;
+            if (wave <= 4) return index % 3 == 0 ? RUnitTypes.kalyx : RUnitTypes.miserable;
+            if (wave <= 6) {
+                return switch (index % 3) {
+                    case 0 -> RUnitTypes.hydroBomber;
+                    case 1 -> RUnitTypes.squid;
+                    default -> RUnitTypes.kalyx;
+                };
+            }
+            return switch (index % 4) {
+                case 0 -> RUnitTypes.pallium;
+                case 1 -> RUnitTypes.hydroBomber;
+                case 2 -> RUnitTypes.squid;
+                default -> RUnitTypes.kalyx;
+            };
+        }
+
+        private Tile findAttackSpawnTile(boolean flying) {
+            int firstRadius = Math.max(2, block.size / 2 + 1);
+            for (int radius = firstRadius; radius <= firstRadius + 6; radius++) {
+                for (int dy = -radius; dy <= radius; dy++) {
+                    for (int dx = -radius; dx <= radius; dx++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dy)) != radius) continue;
+                        Tile candidate = Vars.world.tile(tile.x + dx, tile.y + dy);
+                        if (candidate == null || candidate.block() != Blocks.air) continue;
+                        if (!flying && candidate.floor() != null && candidate.floor().isLiquid) continue;
+                        return candidate;
+                    }
+                }
+            }
+            return null;
+        }
+
+        private void updateAttackWaves() {
+            if (Vars.net.client() || team != Team.neoplastic || team == Vars.state.rules.defaultTeam) return;
+
+            attackWaveTimer += delta();
+            float interval = attackWave == 0 ? 60f * 15f : 60f * 45f;
+            if (attackWaveTimer < interval) return;
+
+            attackWaveTimer = 0f;
+            attackWave++;
+
+            int remaining = Math.max(0, unitCap - countWaveAttackers());
+            int amount = Math.min(2 + attackWave, 8);
+            amount = Math.min(amount, remaining);
+
+            for (int i = 0; i < amount; i++) {
+                UnitType type = waveUnit(attackWave, i);
+                if (type == null || !Units.canCreate(Team.neoplastic, type)) continue;
+
+                Tile spawnTile = findAttackSpawnTile(type.flying);
+                if (spawnTile == null) break;
+
+                Unit attacker = type.create(Team.neoplastic);
+                attacker.set(spawnTile.worldx(), spawnTile.worldy());
+                attacker.rotation(90f);
+                attacker.add();
+            }
+        }
+
         @Override
         public void updateBeat() {
 
@@ -94,6 +176,7 @@ public class CausticHeart extends NeoplasmBlock {
                         updateBeat();
                         growCord(pipe);
                     }
+                    updateAttackWaves();
                 }
             }
         }
