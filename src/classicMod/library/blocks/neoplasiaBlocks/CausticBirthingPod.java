@@ -30,8 +30,6 @@ public class CausticBirthingPod extends NeoplasmBlock {
 
     public TextureRegion[] stages = new TextureRegion[4];
     public Color hatchColor = Pal.neoplasm2;
-    /** One-shot pods are used by the Heart's queued assault waves. */
-    public boolean oneShot;
 
     public CausticBirthingPod(String name) {
         super(name);
@@ -60,6 +58,9 @@ public class CausticBirthingPod extends NeoplasmBlock {
         private float retryTimer;
         /** Recently hatched flash timer. */
         private float hatchFlash;
+
+        /** One-shot pods are used by the Heart's queued assault waves. */
+        public boolean oneShot;
 
         private UnitType currentBrood;
         private final Seq<UnitType> broodQueue = new Seq<>();
@@ -119,10 +120,10 @@ public class CausticBirthingPod extends NeoplasmBlock {
 
         private boolean hatch() {
             UnitType type = selectBrood();
-            if (type == null || !Units.canCreate(team, type) || !NeoplasmBlock.trySpawn(team)) return false;
+            if (type == null || !Units.canCreate(team, type)) return false;
 
             Tile exit = findExit(type);
-            if (exit == null) return false;
+            if (exit == null || !NeoplasmBlock.trySpawn(team)) return false;
 
             Unit unit = type.create(team);
             float angle = Angles.angle(x, y, exit.worldx(), exit.worldy());
