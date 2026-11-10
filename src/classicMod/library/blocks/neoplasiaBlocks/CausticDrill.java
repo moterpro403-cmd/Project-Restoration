@@ -8,6 +8,7 @@ import arc.util.*;
 import arc.util.io.*;
 import classicMod.content.RVars;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.Fx;
 import mindustry.content.Items;
 import mindustry.entities.Effect;
@@ -51,6 +52,25 @@ public class CausticDrill extends NeoplasmBlock {
     }
 
     /**
+     * Returns the actual ore represented by a tile.
+     * Floor deposits are mineable when the tile has no placed block;
+     * wall deposits are exposed through Tile.wallDrop().
+     */
+    private Item mineableDrop(Tile tile) {
+        if (tile == null) return null;
+
+        Item wall = tile.wallDrop();
+        if (canMineWallDrop(wall)) return wall;
+
+        if (tile.block() == Blocks.air) {
+            Item floor = tile.drop();
+            if (canMineWallDrop(floor)) return floor;
+        }
+
+        return null;
+    }
+
+    /**
      * Like Mindustry's Drill, only mine ore tiles inside the drill footprint.
      * This Neoplasm variant also supports the ore-bearing wall faces that its
      * original placement rules allowed.
@@ -62,13 +82,11 @@ public class CausticDrill extends NeoplasmBlock {
     }
 
     public boolean canMine(Tile tile) {
-        if (tile == null || tile.block().isStatic()) return false;
-        Item drops = tile.drop();
-        return drops != null && drops.hardness <= tier && CordCanDrill.contains(drops);
+        return mineableDrop(tile) != null;
     }
 
     public Item getDrop(Tile tile) {
-        return tile.drop();
+        return mineableDrop(tile);
     }
 
     protected void countOre(Tile tile, int drillRotation) {
@@ -78,25 +96,20 @@ public class CausticDrill extends NeoplasmBlock {
         itemArray.clear();
         if (tile == null) return;
 
-        boolean foundFloorOre = false;
+        // Count every valid floor or wall deposit covered by the drill footprint.
         for (Tile other : tile.getLinkedTilesAs(this, tempTiles)) {
-            if (canMine(other)) {
-                oreCount.increment(getDrop(other), 0, 1);
-                foundFloorOre = true;
-            }
+            Item drop = getDrop(other);
+            if (drop != null) oreCount.increment(drop, 0, 1);
         }
 
-        // Preserve the original wall-ore placement option, but use the same
-        // whitelist and hardness checks as the floor-ore mining path.
-        if (!foundFloorOre) {
-            for (int r = 0; r < 4; r++) {
-                for (int i = 0; i < size; i++) {
-                    nearbySide(tile.x, tile.y, Mathf.mod(drillRotation + r, 4), i, Tmp.p1);
-                    Tile other = Vars.world.tile(Tmp.p1.x, Tmp.p1.y);
-                    if (other != null && other.solid()) {
-                        Item drop = other.wallDrop();
-                        if (canMineWallDrop(drop)) oreCount.increment(drop, 0, 1);
-                    }
+        // Wall-ore deposits can also be mined from the four sides of the drill.
+        for (int r = 0; r < 4; r++) {
+            for (int i = 0; i < size; i++) {
+                nearbySide(tile.x, tile.y, Mathf.mod(drillRotation + r, 4), i, Tmp.p1);
+                Tile other = Vars.world.tile(Tmp.p1.x, Tmp.p1.y);
+                if (other != null) {
+                    Item drop = other.wallDrop();
+                    if (canMineWallDrop(drop)) oreCount.increment(drop, 0, 1);
                 }
             }
         }
