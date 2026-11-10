@@ -522,7 +522,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
         }};
 
         //Projectors
-                barrierProjector = new ForceProjector("barrier-projector"){{
+                        barrierProjector = new ForceProjector("barrier-projector"){{
             requirements(Category.effect, with(Items.tungsten, 100, Items.silicon, 125));
             size = 3;
             radius = 50f;
@@ -536,7 +536,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             public TextureRegion[] icons() {
                 return new TextureRegion[]{region, Core.atlas.find(name + "-team-sharded")};
             }
-        };        
+        };
 
         shieldProjector = new BaseShield("shield-projector"){{
             requirements(Category.effect, with(Items.tungsten, 130,Items.surgeAlloy, 75, Items.silicon, 110));
