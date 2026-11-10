@@ -57,8 +57,9 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
     @Override
     public void init() {
-        for (int i = 0; i < 46; i++) {
-            tiles = new TextureRegion[]{Core.atlas.find(name + "-" + (i))};
+        tiles = new TextureRegion[46];
+        for (int i = 0; i < tiles.length; i++) {
+            tiles[i] = Core.atlas.find(name + "-" + i);
         }
         super.init();
     }
