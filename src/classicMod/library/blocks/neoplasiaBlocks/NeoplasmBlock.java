@@ -30,6 +30,12 @@ public class NeoplasmBlock extends Block {
     // expanding independently. Bigger infections naturally spread more slowly.
     private static final ObjectMap<Team, SpreadControl> spreadControls = new ObjectMap<>();
 
+    static {
+        // Do not carry growth cooldowns or cached counts into a newly loaded match.
+        Events.on(EventType.WorldLoadEvent.class, event -> spreadControls.clear());
+        Events.on(EventType.ResetEvent.class, event -> spreadControls.clear());
+    }
+
     private static class SpreadControl {
         float nextSpreadAt;
         float nextSpawnAt;
@@ -46,7 +52,7 @@ public class NeoplasmBlock extends Block {
         }
 
         float now = Time.time;
-        // Reset cached timers if the game clock restarts after loading a new match.
+        // Also handle game-clock resets if the event order differs across modes.
         if (now < control.lastTime) {
             control.nextSpreadAt = 0f;
             control.nextSpawnAt = 0f;
@@ -55,7 +61,7 @@ public class NeoplasmBlock extends Block {
         }
         control.lastTime = now;
 
-        // Counting is cached for one second to avoid scanning for every building pulse.
+        // Count only once per second; this is shared by all spread and spawn checks.
         if (now >= control.nextCountCheck) {
             int count = 0;
             for (Building build : Groups.build) {
@@ -67,17 +73,26 @@ public class NeoplasmBlock extends Block {
         return control;
     }
 
-    protected static boolean trySpread(Team team) {
+    private static float spreadCooldown(SpreadControl control) {
+        // 0.75s at the start, then +0.9s per structure, capped at 10s.
+        return Mathf.clamp(45f + control.structureCount * 0.9f, 45f, 600f);
+    }
+
+    protected static boolean canSpread(Team team) {
         if (team == null || Vars.net.client()) return false;
+        return Time.time >= controlFor(team).nextSpreadAt;
+    }
+
+    protected static void recordSpread(Team team) {
+        if (team == null || Vars.net.client()) return;
         SpreadControl control = controlFor(team);
-        float now = Time.time;
+        control.nextSpreadAt = Time.time + spreadCooldown(control);
+    }
 
-        // 0.75s at the start, then +0.9s for each existing Neoplasm structure,
-        // capped at 10s so the infection can still advance on very large maps.
-        float cooldown = Mathf.clamp(45f + control.structureCount * 0.9f, 45f, 600f);
-        if (now < control.nextSpreadAt) return false;
-
-        control.nextSpreadAt = now + cooldown;
+    // Retained for compatibility with any older internal callers.
+    protected static boolean trySpread(Team team) {
+        if (!canSpread(team)) return false;
+        recordSpread(team);
         return true;
     }
 
@@ -280,19 +295,24 @@ public class NeoplasmBlock extends Block {
         }
 
         public void growCord(Block block){
-            if (!isCord){
-                if (!trySpread(team)) {
+            if (!isCord) {
+                if (!canSpread(team) || proximityTiles.isEmpty()) {
                     grow = false;
                     return;
                 }
-                int rand = Mathf.random(0, proximityTiles.size);
-                Tile tile = proximityTiles.get(rand % proximityTiles.size);
-                if (tile != null) {
-                    if (tile.build == null && passable(tile, true, true)) {
-                        tile.setBlock(block, team);
-                        if (tile.build != null && tile.build instanceof CausticCord.CordBuild cordBuild) {
-                            cordBuild.facingRot = cordBuild.relativeTo(this.tile);
-                        }
+
+                // Start at a random edge, but inspect every edge before giving up.
+                // A blocked random pick must not waste the team's spread cooldown.
+                int start = Mathf.random(0, proximityTiles.size - 1);
+                for (int i = 0; i < proximityTiles.size; i++) {
+                    Tile candidate = proximityTiles.get((start + i) % proximityTiles.size);
+                    if (candidate == null || candidate.build != null || !passable(candidate, true, true)) continue;
+
+                    candidate.setBlock(block, team);
+                    if (candidate.build instanceof CausticCord.CordBuild cordBuild) {
+                        cordBuild.facingRot = cordBuild.relativeTo(this.tile);
+                        recordSpread(team);
+                        break;
                     }
                 }
             }
