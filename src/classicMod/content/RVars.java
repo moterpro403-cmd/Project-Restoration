@@ -48,6 +48,7 @@ public class RVars extends Vars {
     }
 
     public static void init_RVars() {
+        PathfinderExtended.preloadAddons();
         pathfinderCustom = new PathfinderCustom();
     }
 }
