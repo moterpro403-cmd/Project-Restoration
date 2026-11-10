@@ -17,7 +17,7 @@ description: "A Mindustry builds including some classic ones are added to Mindus
 version: 0.6.0 Beta
 
 #the minimum game build required to run this mod
-minGameVersion: 154
+minGameVersion: "160.7"
 
 #this is a java mod
 java: true
