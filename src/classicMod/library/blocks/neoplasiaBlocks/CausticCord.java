@@ -246,6 +246,14 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 //if (!prev.ignorePath.contains(facingRot)) prev.ignorePath.add(facingRot);
             }
 
+            // A Cord that grows onto a floor-ore deposit becomes an extractor.
+            Item floorDrop = tile.drop();
+            if (floorDrop != null && CordCanDrill.contains(floorDrop)) {
+                tile.setBlock(RBlocks.neoplasiaDrill, team, rotation);
+                return;
+            }
+
+            // Preserve the original wall-ore extraction behavior.
             this.block.nearbySide(tile.x, tile.y, Mathf.mod(facingRot, 4), 0, Tmp.p1);
             int dx = (Geometry.d4x(facingRot) > 0) ? 1 : 0;
             int dy = (Geometry.d4y(facingRot) > 0) ? 1 : 0;
@@ -254,7 +262,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 int spaces = calculateSpaces(drill.size, other.x, other.y);
                 Item drop = other.wallDrop();
                 if (drop != null && spaces >= drill.size * drill.size && CordCanDrill.contains(drop)) {
-                    tile.setBlock(RBlocks.neoplasiaDrill, team);
+                    tile.setBlock(RBlocks.neoplasiaDrill, team, rotation);
+                    return;
                 }
             }
         }
