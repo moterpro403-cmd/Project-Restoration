@@ -2,6 +2,7 @@ package classicMod.library.ai;
 
 import arc.math.*;
 import arc.math.geom.*;
+import mindustry.Vars;
 import mindustry.ai.Pathfinder;
 import mindustry.core.World;
 import mindustry.entities.Sized;
