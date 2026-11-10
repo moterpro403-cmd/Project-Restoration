@@ -107,7 +107,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
     interplanetaryAccelerator, //Endgame - Mindustry
 
-    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
+    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, birthingPod, largeCliffCrusher //Erekir - Prototype [v8-dev]
     ;
 
     public void load() {
@@ -1167,6 +1167,17 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnColor = Liquids.hydrogen.color;
             spawn = RUnitTypes.hydroBomber;
             spawnTime = 60f;
+        }};
+
+
+        birthingPod = new CausticBirthingPod("neoplasm-birthing-pod"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            size = 3;
+            health = 420;
+            incubationTime = 60f * 30f;
+            hatchDuration = 42f;
+            broodTypes.addAll(RUnitTypes.miserable, RUnitTypes.kalyx, RUnitTypes.hydroBomber, RUnitTypes.squid, RUnitTypes.pallium);
+            researchCost = ItemStack.with(Items.beryllium, 20);
         }};
 
         neoplasiaBomb = new CausticMine("Neoplasia-Bomb"){{
