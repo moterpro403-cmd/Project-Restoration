@@ -79,7 +79,8 @@ public class RUnitTypes {
             {
                 flying = true;
                 constructor = UnitEntity::create;
-                aiController = FlyingAI::new;
+                aiController = NeoplasmFlyingAI::new;
+                playerControllable = false;
                 accel = 0.64f * 2f;
                 speed = 1f;
                 drag = 0.07f;
@@ -185,7 +186,8 @@ public class RUnitTypes {
 
         miserable = new NeoplasmUnitType("walky"){{
             constructor = LegsUnit::create;
-            aiController = GroundAI::new;
+            aiController = NeoplasmHugAI::new;
+            playerControllable = false;
             drag = 0.1f;
             speed = 1f;
             hitSize = 9f;
@@ -237,6 +239,7 @@ public class RUnitTypes {
         hydroBomber = new BomberUnitType("hydro-bomber"){{
             constructor = UnitEntity::create;
             aiController = SuicideBomberAI::new;
+            playerControllable = false;
             smokeTrail = RFx.smokeTrailColor;
             smokeColor = Liquids.hydrogen.color;
             trailChance = 0.55f;
@@ -277,7 +280,8 @@ public class RUnitTypes {
 
         kalyx = new NeoplasmUnitType("kalyx"){{
             constructor = UnitEntity::create;
-            aiController = FlyingAI::new;
+            aiController = NeoplasmFlyingAI::new;
+            playerControllable = false;
             //smokeTrail = Fx.neoplasiaSmoke;
 
             health = 220;
@@ -341,7 +345,8 @@ public class RUnitTypes {
             speed = 1.2f;
 
             drawBody = false;
-            aiController = HugAI::new;
+            aiController = NeoplasmHugAI::new;
+            playerControllable = false;
         }};
 
         worm = new NeoplasmUnitType("worm"){{
@@ -363,7 +368,8 @@ public class RUnitTypes {
             speed = 1.15f;
 
             drawBody = false;
-            aiController = HugAI::new;
+            aiController = NeoplasmHugAI::new;
+            playerControllable = false;
         }};
 
         squid = new NeoplasmUnitType("flying-neoplasm-squid"){
@@ -375,6 +381,8 @@ public class RUnitTypes {
                 accel = 0.15f;
                 drag = 0.06f;
                 flying = true;
+                aiController = NeoplasmFlyingAI::new;
+                playerControllable = false;
                 health = 70;
                 engineOffset = 5.75f;
                 engineSize = 0;
@@ -422,6 +430,7 @@ public class RUnitTypes {
 
             //controller = u -> new SteamHugAI();
             aiController = SteamHugAI::new;
+            playerControllable = false;
             health = 20;
             segments = 0;
 
