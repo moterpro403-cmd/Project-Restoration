@@ -17,6 +17,7 @@ import mindustry.gen.*;
 import mindustry.type.*;
 import mindustry.world.*;
 import mindustry.world.meta.*;
+import mindustry.graphics.Pal;
 
 public class CausticHeart extends NeoplasmBlock {
 
@@ -37,9 +38,32 @@ public class CausticHeart extends NeoplasmBlock {
     }
 
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
-        return tile.getLinkedTilesAs(this, tempTiles).sumf((other) -> {
-            return other.floor().attributes.get(attribute);
-        }) > minEfficiency;
+        return sumAttribute(attribute, tile.x, tile.y) > minEfficiency;
+    }
+
+    @Override
+    public void drawPlace(int x, int y, int rotation, boolean valid) {
+        super.drawPlace(x, y, rotation, valid);
+        float efficiency = sumAttribute(attribute, x, y);
+        boolean canPlace = efficiency > minEfficiency;
+        drawPlaceText(Core.bundle.format("bar.efficiency", (int)(efficiency * 100f)), x, y, canPlace);
+    }
+
+    @Override
+    public void setBars() {
+        super.setBars();
+        addBar("progress", (HeartBuilding entity) -> new Bar(
+                () -> Core.bundle.format("bar.neoplasm-spread",
+                        (int)(NeoplasmBlock.spreadCredits(entity.team) * 100f),
+                        (int)(NeoplasmBlock.spreadCapacity(entity.team) * 100f)),
+                () -> Pal.accent,
+                () -> NeoplasmBlock.spreadCredits(entity.team) / Math.max(1f, NeoplasmBlock.spreadCapacity(entity.team))
+        ));
+        addBar("units", (HeartBuilding entity) -> new Bar(
+                () -> Core.bundle.format("bar.unitcap", "Neoplasm", entity.countWaveAttackers(), unitCap),
+                () -> Pal.power,
+                () -> Mathf.clamp((float)entity.countWaveAttackers() / Math.max(1, unitCap))
+        ));
     }
 
     public class HeartBuilding extends NeoplasmBuilding {
