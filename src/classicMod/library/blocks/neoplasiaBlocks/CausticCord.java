@@ -165,6 +165,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
+            if (!NeoplasmBlock.trySpread(team)) {
+                super.growCord(block);
+                return;
+            }
 
             retry++;
             growRestart++;
