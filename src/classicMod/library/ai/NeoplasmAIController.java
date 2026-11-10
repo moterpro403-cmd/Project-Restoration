@@ -112,7 +112,7 @@ public class NeoplasmAIController extends AIController {
 
         if (avaliableLand.size <= 0) return null;
         avaliableLand.removeAll(tile -> closestDanger.dst(tile) < 80);
-        avaliableLand.removeAll(tile -> this.unit.dst(tile) < 10 && this.unit.dst(tile) > 100);
+        avaliableLand.removeAll(tile -> this.unit.dst(tile) < 10 || this.unit.dst(tile) > 100);
         avaliableLand.sort(tile -> tile.dst(targetTile));
 
         if (avaliableLand.size <= 0) return null;
