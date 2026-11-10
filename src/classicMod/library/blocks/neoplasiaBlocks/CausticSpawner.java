@@ -88,17 +88,15 @@ public class CausticSpawner extends NeoplasmBlock {
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
-            if (progress >= spawnTime){
+            if (progress >= spawnTime && spawn != null && Units.canCreate(team, spawn) && NeoplasmBlock.trySpawn(team)) {
                 consume();
-                progress %= 1f;
+                progress = 0f;
                 speedScl = 0f;
-                if (Units.canCreate(team, spawn)) {
-                    if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
-                    var unit = spawn.create(team);
-                    unit.set(this);
-                    unit.rotation(90f);
-                    unit.add();
-                }
+                if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
+                var unit = spawn.create(team);
+                unit.set(this);
+                unit.rotation(90f);
+                unit.add();
                 if (selfDestruct){
                     var dTile = proximityTiles.copy().removeAll(t -> !(t.build instanceof CausticCord.CordBuild));
                     if(dTile.size > 0) {
