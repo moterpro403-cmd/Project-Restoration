@@ -41,12 +41,15 @@ public class CausticBirthingPod extends NeoplasmBlock {
         super.load();
         for (int i = 0; i < stages.length; i++) {
             stages[i] = Core.atlas.find(name + "-stage" + (i + 1));
+            if (!stages[i].found()) stages[i] = Core.atlas.find("neoplasm-cardius");
         }
     }
 
     @Override
     protected TextureRegion[] icons() {
-        return new TextureRegion[]{Core.atlas.find(name)};
+        TextureRegion icon = Core.atlas.find(name);
+        if (!icon.found()) icon = Core.atlas.find("neoplasm-cardius");
+        return new TextureRegion[]{icon};
     }
 
     public class BirthingPodBuild extends NeoplasmBuilding {
@@ -195,7 +198,7 @@ public class CausticBirthingPod extends NeoplasmBlock {
             }
 
             drawBeat(1f, 1f, 0.2f);
-            TextureRegion chosen = stages[frame] != null && stages[frame].found() ? stages[frame] : region;
+            TextureRegion chosen = stages[frame] != null && stages[frame].found() ? stages[frame] : Core.atlas.find("neoplasm-cardius");
             Draw.rect(chosen, x, y);
             Draw.color();
             Draw.reset();
