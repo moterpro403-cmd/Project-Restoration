@@ -91,34 +91,9 @@ public class RBlocks {
 
     thermalPump, //Pump - Old Content [v6]
 
-    warheadAssembler, ballisticSilo, nuclearWarhead, //Nuclear - Prototype [v7-dev] TODO make it work
-    shieldProjector, shieldBreaker, largeShieldProjector, 
-        //Projectors
-        barrierProjector = new ForceProjector("barrier-projector"){{
-            requirements(Category.effect, with(Items.tungsten, 100, Items.silicon, 125));
-
-            size = 3;
-            radius = 50f;
-            shieldHealth = 2000f;
-            cooldownNormal = 3f;
-            cooldownBrokenBase = 0.35f;
-            envEnabled |= Env.space;
-
-            consumePower(4f);
-        }
-
-            @Override
-            public TextureRegion[] icons() {
-                return new TextureRegion[]{
-                    region,
-                    Core.atlas.find(name + "-team-sharded")
-                };
-            }
-
-        };
-
-    heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
-
+warheadAssembler, ballisticSilo, nuclearWarhead, //Nuclear - Prototype [v7-dev] TODO make it work
+shieldProjector, shieldBreaker, largeShieldProjector, barrierProjector,
+heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
     slagCentrifuge, cellSynthesisChamber, //Generic Crafters - Erekir - Prototype [v7-dev]
     tankAssembler,
     reinforcedSafe, coreAegis, //Storage - Erekir - Prototype [v7-dev]
