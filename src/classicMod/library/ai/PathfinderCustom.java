@@ -410,7 +410,7 @@ public class PathfinderCustom implements Runnable {
     public Tile getTargetTileDodge(Tile tile, Flowfield path, Seq<Tile> dangerTile) {
         if (tile == null) {
             return null;
-        } else if (!path.initialized) {
+        } else if (path == null || !path.initialized) {
             return tile;
         } else {
             if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > (long)path.refreshRate) {
@@ -435,8 +435,16 @@ public class PathfinderCustom implements Runnable {
             Point2[] var8 = DirectionalGenerator.generateDirections(6, false);
             int var9 = var8.length;
 
-            if (dangerTile.size > 0){
-                danger = dangerTile.copy().sort(tile1 -> tile1.dst(tile)).get(0);
+            if (dangerTile != null && !dangerTile.isEmpty()) {
+                float nearestDistance = Float.MAX_VALUE;
+                for (Tile dangerCandidate : dangerTile) {
+                    if (dangerCandidate == null) continue;
+                    float distance = dangerCandidate.dst(tile);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        danger = dangerCandidate;
+                    }
+                }
             }
 
             for(int var10 = 0; var10 < var9; ++var10) {
