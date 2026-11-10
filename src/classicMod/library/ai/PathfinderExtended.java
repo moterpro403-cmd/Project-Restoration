@@ -103,8 +103,8 @@ public class PathfinderExtended extends Pathfinder {
     }
 
     public static void addonFieldTypes(){
-        if (!fieldTypes.contains(SteamVentField.class)) fieldTypes.add(SteamVentField::new);
-        if (!fieldTypes.contains(CommandCenterField.class)) fieldTypes.add(CommandCenterField::new);
-        if (!fieldTypes.contains(OresField.class)) fieldTypes.add(OresField::new);
+        fieldTypes.add(SteamVentField::new);
+        fieldTypes.add(CommandCenterField::new);
+        fieldTypes.add(OresField::new);
     }
 }
