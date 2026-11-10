@@ -135,7 +135,7 @@ public class CausticHeart extends NeoplasmBlock {
         }
 
         private void spawnPendingAttackers() {
-            if (pendingAttackers.isEmpty()) return;
+            if (pendingAttackers.isEmpty() || Vars.net.client()) return;
 
             UnitType type = pendingAttackers.first();
             if (type == null) {
@@ -144,30 +144,17 @@ public class CausticHeart extends NeoplasmBlock {
             }
             if (!Units.canCreate(Team.neoplastic, type)) return;
 
-            // Prefer an existing colony pod so queued attackers emerge from
-            // established brood chambers instead of spawning beside the Heart.
-            CausticBirthingPod.BirthingPodBuild pod = null;
-            for (Building build : Groups.build) {
-                if (build.team == Team.neoplastic && build instanceof CausticBirthingPod.BirthingPodBuild candidate
-                        && candidate.queuedCount() < 3) {
-                    pod = candidate;
-                    break;
-                }
-            }
+            // Keep the assault-wave queue, but spawn units directly onto a valid
+            // nearby tile. The optional Birthing Pod structure is no longer used.
+            Tile spawnTile = findAttackSpawnTile(type.flying);
+            if (spawnTile == null || !NeoplasmBlock.trySpawn(Team.neoplastic)) return;
 
-            if (pod == null) {
-                Tile podTile = findAttackSpawnTile(false);
-                if (podTile == null) return;
-                podTile.setBlock(RBlocks.birthingPod, Team.neoplastic);
-                if (podTile.build instanceof CausticBirthingPod.BirthingPodBuild created) {
-                    created.oneShot = true;
-                    created.enqueueBrood(type);
-                    pendingAttackers.remove(0);
-                }
-                return;
-            }
+            Unit attacker = type.create(Team.neoplastic);
+            attacker.set(spawnTile.worldx(), spawnTile.worldy());
+            attacker.rotation(90f);
+            attacker.add();
 
-            pod.enqueueBrood(type);
+            Fx.neoplasiaSmoke.at(spawnTile.worldx(), spawnTile.worldy());
             pendingAttackers.remove(0);
         }
 
