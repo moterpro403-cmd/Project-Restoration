@@ -761,7 +761,7 @@ public class PathfinderCustom implements Runnable {
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : Ores) {
-                if (RVars.CordCanDrill.contains(tile.wallDrop())) out.add(tile.array());
+                if (RVars.CordCanDrill.contains(tile.drop()) || RVars.CordCanDrill.contains(tile.wallDrop())) out.add(tile.array());
             }
         }
     }
