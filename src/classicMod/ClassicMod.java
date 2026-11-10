@@ -465,7 +465,7 @@ public class ClassicMod extends Mod {
                 mindustry.game.Team previousTeam = type.sample.team;
                 boolean usesCommandAI;
                 try {
-                    type.sample.team = mindustry.game.Team.sharded;
+                    type.sample.team = state.rules.defaultTeam;
                     usesCommandAI = type.createController(type.sample) instanceof CommandAI;
                 } finally {
                     type.sample.team = previousTeam;
