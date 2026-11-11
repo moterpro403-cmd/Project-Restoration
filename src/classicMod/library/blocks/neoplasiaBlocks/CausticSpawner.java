@@ -6,6 +6,8 @@ import arc.graphics.g2d.*;
 import arc.math.Mathf;
 import mindustry.Vars;
 import mindustry.entities.*;
+import mindustry.gen.Building;
+import mindustry.type.Item;
 import mindustry.type.UnitType;
 import mindustry.world.Tile;
 import mindustry.world.consumers.ConsumeItems;
