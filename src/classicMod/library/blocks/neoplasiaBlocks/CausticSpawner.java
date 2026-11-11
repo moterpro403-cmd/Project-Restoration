@@ -129,4 +129,3 @@ public class CausticSpawner extends NeoplasmBlock {
             }
         }
     }
-}
