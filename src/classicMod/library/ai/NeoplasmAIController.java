@@ -3,6 +3,7 @@ package classicMod.library.ai;
 import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
+import arc.struct.ObjectMap;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.*;
@@ -22,7 +23,9 @@ public class NeoplasmAIController extends AIController {
 
     public Seq<Tile> DodgeTile = new Seq<>();
     private final ObjectSet<Tile> dodgeLookup = new ObjectSet<>();
+    private final ObjectMap<Tile, Float> dodgeExpiry = new ObjectMap<>();
     private final Seq<Tile> nearbyDodgeBuffer = new Seq<>(8);
+    private static final float dodgeMemoryTicks = 60f * 60f;
     public Seq<Unit> groups = new Seq<>();
 
     public boolean ignore;
@@ -37,6 +40,27 @@ public class NeoplasmAIController extends AIController {
 
     private float discoveryTimer;
     private final Seq<Unit> deadUnitBuffer = new Seq<>();
+
+    private void addDodgeTile(Tile tile) {
+        if (tile == null) return;
+        if (dodgeLookup.add(tile)) DodgeTile.add(tile);
+        // A death site remains dangerous for one minute, then can be revisited.
+        dodgeExpiry.put(tile, Time.time + dodgeMemoryTicks);
+    }
+
+    private void pruneDodgeTiles() {
+        for (int i = DodgeTile.size - 1; i >= 0; i--) {
+            Tile danger = DodgeTile.get(i);
+            Float expiry = dodgeExpiry.get(danger);
+            if (danger == null || expiry == null || Time.time >= expiry) {
+                DodgeTile.remove(i);
+                if (danger != null) {
+                    dodgeLookup.remove(danger);
+                    dodgeExpiry.remove(danger);
+                }
+            }
+        }
+    }
 
     @Override
     public void updateUnit() {
@@ -57,6 +81,7 @@ public class NeoplasmAIController extends AIController {
 
             // Dead-ally cleanup uses the same cadence as discovery. Checking the
             // entire remembered group every frame multiplied this work by unit count.
+            pruneDodgeTiles();
             deadUnitBuffer.clear();
             for (Unit neoplasm : neoplasmGroup) {
                 if (neoplasm == null || !neoplasm.dead) continue;
@@ -65,7 +90,7 @@ public class NeoplasmAIController extends AIController {
                 if (deadTile != null && neoplasm.controller() instanceof NeoplasmAIController ai && !ai.ignore) {
                     for (var point : GeometryPlus.d8plus) {
                         Tile t = Vars.world.tile(deadTile.x + point.x, deadTile.y + point.y);
-                        if (t != null && dodgeLookup.add(t)) DodgeTile.add(t);
+                        if (t != null) addDodgeTile(t);
                     }
                 }
 
@@ -144,7 +169,9 @@ public class NeoplasmAIController extends AIController {
         // rescanning distant historical markers.
         nearbyDodgeBuffer.clear();
         for (Tile danger : DodgeTile) {
-            if (danger != null && danger.dst(unit) <= 144f) nearbyDodgeBuffer.add(danger);
+            // The candidate may be up to 100 world units away; include the
+            // full 80-unit danger radius around every candidate.
+            if (danger != null && danger.dst(unit) <= 180f) nearbyDodgeBuffer.add(danger);
         }
 
         // Search a symmetric area around the unit; the former -mid..range
@@ -177,21 +204,40 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     public Tile getEdgeEscapeTile() {
+        if (unit == null) return null;
+
         Tile best = null;
         float bestDistance = Float.MAX_VALUE;
+        Tile nearestDanger = closestDanger();
+        if (nearestDanger == null) return null;
 
-        for (Tile danger : DodgeTile) {
-            if (danger == null) continue;
-            for (Point2 offset : Geometry.d8) {
-                Tile neighbor = Vars.world.tile(danger.x + offset.x, danger.y + offset.y);
-                if (neighbor == null || dodgeLookup.contains(neighbor) ||
-                        neighbor.block() != Blocks.air || neighbor.floor() == null ||
-                        neighbor.floor().isLiquid || !unit.canPass(neighbor.x, neighbor.y)) continue;
+        // Search around the unit, not around the death markers. The old fallback
+        // often selected a tile immediately beside a marker that was still
+        // inside the 80-unit danger radius.
+        int radius = 15;
+        for (int y = -radius; y <= radius; y++) {
+            for (int x = -radius; x <= radius; x++) {
+                Tile candidate = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
+                if (candidate == null || candidate.block() != Blocks.air ||
+                        candidate.floor() == null || candidate.floor().isLiquid ||
+                        !unit.canPass(candidate.x, candidate.y)) continue;
 
-                float distance = neighbor.dst(unit);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    best = neighbor;
+                float unitDistance = candidate.dst(unit);
+                if (unitDistance < 10f || unitDistance > 120f) continue;
+
+                boolean safe = true;
+                for (Tile danger : DodgeTile) {
+                    if (danger != null && danger.dst(candidate) < 80f) {
+                        safe = false;
+                        break;
+                    }
+                }
+                if (!safe) continue;
+
+                // Prefer the closest tile that actually exits the danger zone.
+                if (unitDistance < bestDistance) {
+                    bestDistance = unitDistance;
+                    best = candidate;
                 }
             }
         }
@@ -219,10 +265,10 @@ public class NeoplasmAIController extends AIController {
         Tile targetTile = target != null ? target.tileOn() : null;
         Tile nearDanger = closestDanger();
 
-        if (nearDanger != null && targetTile != null && nearDanger.dst(tile) < 80f) {
+        if (nearDanger != null && nearDanger.dst(tile) < 80f) {
             if (rerouteCooldown <= 0f || currentSafeGoal != targetTile ||
                     !validCachedSafeTarget(currentSafeTarget, unit)) {
-                currentSafeTarget = getClosestTarget(15, nearDanger, targetTile, unit);
+                currentSafeTarget = targetTile == null ? null : getClosestTarget(15, nearDanger, targetTile, unit);
                 if (currentSafeTarget == null) currentSafeTarget = getEdgeEscapeTile();
                 currentSafeGoal = targetTile;
                 rerouteCooldown = 10f;
