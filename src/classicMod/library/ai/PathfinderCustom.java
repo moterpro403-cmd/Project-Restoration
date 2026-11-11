@@ -14,6 +14,7 @@ import arc.util.*;
 import classicMod.content.RVars;
 import classicMod.library.DirectionalGenerator;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
+import mindustry.content.Blocks;
 import mindustry.Vars;
 import mindustry.ai.Pathfinder;
 import mindustry.core.World;
