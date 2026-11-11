@@ -260,39 +260,31 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
 
         private boolean mineableDrillOre(Item item) {
-            return item != null && item.hardness <= drill.tier && CordCanDrill.contains(item);
+            return item != null && item.hardness <= ((CausticDrill)drill).tier && CordCanDrill.contains(item);
         }
 
         /** Checks whether a 2x2 drill footprint can replace only air and Cords. */
         private boolean drillAreaAvailable(Tile origin) {
-            for (int dy = 0; dy < drill.size; dy++) {
-                for (int dx = 0; dx < drill.size; dx++) {
-                    Tile candidate = Vars.world.tile(origin.x + dx, origin.y + dy);
-                    if (candidate == null) return false;
-                    Block block = candidate.block();
-                    if (block != Blocks.air && !(block instanceof CausticCord)) return false;
-                }
+            for (Tile candidate : origin.getLinkedTilesAs(drill, tempTiles)) {
+                if (candidate == null) return false;
+                Block block = candidate.block();
+                if (block != Blocks.air && !(block instanceof CausticCord)) return false;
             }
             return true;
         }
 
         /** Looks for floor ore under the footprint or wall ore along its perimeter. */
         private boolean drillAreaHasOre(Tile origin) {
-            for (int dy = 0; dy < drill.size; dy++) {
-                for (int dx = 0; dx < drill.size; dx++) {
-                    Tile candidate = Vars.world.tile(origin.x + dx, origin.y + dy);
-                    if (candidate != null && mineableDrillOre(candidate.drop())) return true;
-                }
+            Seq<Tile> footprint = origin.getLinkedTilesAs(drill, tempTiles);
+            for (Tile candidate : footprint) {
+                if (candidate != null && mineableDrillOre(candidate.drop())) return true;
             }
 
-            for (int dy = 0; dy < drill.size; dy++) {
-                for (int dx = 0; dx < drill.size; dx++) {
-                    Tile footprintTile = Vars.world.tile(origin.x + dx, origin.y + dy);
-                    if (footprintTile == null) continue;
-                    for (Point2 direction : Geometry.d4) {
-                        Tile wall = Vars.world.tile(footprintTile.x + direction.x, footprintTile.y + direction.y);
-                        if (wall != null && mineableDrillOre(wall.wallDrop())) return true;
-                    }
+            for (Tile footprintTile : footprint) {
+                if (footprintTile == null) continue;
+                for (Point2 direction : Geometry.d4) {
+                    Tile wall = Vars.world.tile(footprintTile.x + direction.x, footprintTile.y + direction.y);
+                    if (wall != null && mineableDrillOre(wall.wallDrop())) return true;
                 }
             }
             return false;
