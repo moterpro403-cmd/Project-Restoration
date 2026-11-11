@@ -11,9 +11,9 @@ public class RSectorPresents extends SectorPresets {
     ;
 
     public static void load() {
-        // First campaign stronghold for the Neoplasm faction.
+        // First Erekir campaign stronghold for the Neoplasm faction.
         // It is an attack objective, not a Crux wave-defense sector.
-        silverCrags = new SectorPreset("silverCrags", Planets.serpulo, 25) {{
+        silverCrags = new SectorPreset("silverCrags", Planets.erekir, 47) {{
             captureWave = 0;
             difficulty = 3;
             alwaysUnlocked = true;
