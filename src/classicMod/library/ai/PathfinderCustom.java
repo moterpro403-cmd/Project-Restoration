@@ -755,13 +755,31 @@ public class PathfinderCustom implements Runnable {
     }
 
     public static class OresField extends Flowfield {
-        //public Item OreTarget;
-
-        public OresField() {}
+        public OresField() {
+            refreshRate = 900;
+        }
 
         protected void getPositions(IntSeq out) {
-            for (Tile tile : Ores) {
-                if (RVars.CordCanDrill.contains(tile.drop()) || RVars.CordCanDrill.contains(tile.wallDrop())) out.add(tile.array());
+            // Floor deposits must be approached on the deposit tile; wall deposits
+            // must be approached from an adjacent open tile because the wall itself
+            // is impassable to Neoplasm Cords.
+            for (Tile tile : Vars.world.tiles) {
+                if (tile == null) continue;
+
+                if (tile.block() == Blocks.air && RVars.CordCanDrill.contains(tile.drop())) {
+                    out.add(tile.array());
+                    continue;
+                }
+
+                if (tile.wallDrop() != null && RVars.CordCanDrill.contains(tile.wallDrop())) {
+                    for (Point2 direction : Geometry.d4) {
+                        Tile approach = Vars.world.tile(tile.x + direction.x, tile.y + direction.y);
+                        if (approach != null && approach.block() == Blocks.air &&
+                                approach.floor() != null && !approach.floor().isLiquid) {
+                            out.add(approach.array());
+                        }
+                    }
+                }
             }
         }
     }
