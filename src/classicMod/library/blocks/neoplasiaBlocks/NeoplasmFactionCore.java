@@ -102,20 +102,50 @@ public class NeoplasmFactionCore extends CoreBlock{
                 }
             }
 
+            // Campaign maps are not guaranteed to contain steam vents. When none
+            // exists, establish Cardius on nearby open ground so the faction still
+            // starts its organic colony instead of remaining a lone Core.
+            if(best == null){
+                best = findFallbackCardiusSite();
+            }
+
             if(best != null){
                 best.setBlock(RBlocks.heart, team, 0);
                 Fx.neoplasiaSmoke.at(best.worldx(), best.worldy());
             }
         }
 
+        private Tile findFallbackCardiusSite(){
+            Tile best = null;
+            float bestDistance = Float.MAX_VALUE;
+
+            for(int dy = -18; dy <= 18; dy++){
+                for(int dx = -18; dx <= 18; dx++){
+                    float distance = Mathf.dst(dx, dy, 0f, 0f);
+                    // Keep the two 3x3 structures separate, but seed Cardius
+                    // close enough that it immediately becomes part of the base.
+                    if(distance < 4f || distance > 18f || distance >= bestDistance) continue;
+
+                    Tile candidate = Vars.world.tile(tile.x + dx, tile.y + dy);
+                    if(candidate == null || !heartFootprintClear(candidate)) continue;
+
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
+        }
+
         private boolean heartFootprintClear(Tile center){
-            // Cardius is 3x3. Do not let the automatic seed overwrite unrelated
-            // structures when the closest vent is in a crowded starting area.
+            // Cardius is 3x3. Never overwrite unrelated structures or place it
+            // on liquid/deep/solid terrain when using the no-vent fallback.
             for(int dy = -1; dy <= 1; dy++){
                 for(int dx = -1; dx <= 1; dx++){
                     Tile tile = Vars.world.tile(center.x + dx, center.y + dy);
                     if(tile == null) return false;
                     if(tile.build != null && !(tile.build instanceof CausticCord.CordBuild)) return false;
+                    if(tile.floor().isLiquid || tile.floor().isDeep() || tile.solid()) return false;
                 }
             }
             return true;
