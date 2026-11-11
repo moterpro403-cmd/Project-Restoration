@@ -94,7 +94,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         public int xscl;
         public int yscl;
 
-        public int task = 0;
+        public int task = -1;
         private final float[] drawVertices = new float[24];
         private float drillScanTimer;
 
@@ -169,54 +169,86 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
-
             retry++;
             growRestart++;
+
             for (int a = 0; a < 4; a++) {
                 Tile man = nearbyTile(Mathf.mod(facingRot + a, 4));
-                if (man != null && backTile() != null && backTile() != man){
-                    if (man.build instanceof NeoplasmBuilding) {
-                        retry = 0;
-                        break;
-                    }
+                if (man != null && backTile() != null && backTile() != man && man.build instanceof NeoplasmBuilding) {
+                    retry = 0;
+                    break;
                 }
             }
 
-
-            // TODO better cordAI
-            task = (task != 0) ? task : PathfinderCustom.fieldVent;
+            // -1 means "not assigned". Field 0 is a valid objective (enemy core).
+            if (task < 0) task = PathfinderCustom.fieldVent;
             Tile next = pathfind(task);
 
-
-            if (
-                    passable(next, true)
-            ) {
+            // Do not treat an existing Cord, Heart, Drill, or other colony block
+            // as successful expansion. Only a newly placed Cord resets the retry.
+            if (next != null && next != this.tile && passable(next, true)
+                    && next.build == null && !CantReplace(next.block())) {
                 int rot = this.tile.relativeTo(next);
                 Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
                 Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                if (
-                        passable(nearRight, false)
-                        && passable(nearLeft, false)
-                ) {
-                    if (!CantReplace(next.block())) next.setBlock(RBlocks.cord, team);
-                    if (next.build != null && next.build instanceof CordBuild cordBuild) {
-                        cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
-                                Mathf.randomBoolean() ? PathfinderCustom.fieldOres : Mathf.randomBoolean() ? PathfinderCustom.fieldCore : PathfinderExtended.fieldVent;
+
+                if (passable(nearRight, false) && passable(nearLeft, false)) {
+                    next.setBlock(RBlocks.cord, team, rot);
+                    if (next.build instanceof CordBuild cordBuild && cordBuild != this) {
+                        cordBuild.task = chooseBranchTask(task);
                         cordBuild.facingRot = rot;
                         cordBuild.prev = this;
+                        growRestart = 0;
                     }
-                    growRestart = 0;
                 }
             }
+
             super.growCord(block);
+        }
+
+        /** Returns true only when this objective currently has live destinations. */
+        private boolean hasTaskTargets(int pathTarget) {
+            return pathfinderCustom != null &&
+                    pathfinderCustom.getField(team, Pathfinder.costNeoplasm, pathTarget).hasTargets();
+        }
+
+        /** Move to the next available objective instead of cycling through empty fields. */
+        private int nextAvailableTask(int currentTask) {
+            for (int step = 1; step <= 3; step++) {
+                int candidate = (currentTask + step) % 3;
+                if (hasTaskTargets(candidate)) return candidate;
+            }
+            return currentTask;
+        }
+
+        /** Keep most branches on their current objective, but let some explore alternatives. */
+        private int chooseBranchTask(int currentTask) {
+            if (currentTask >= 0 && hasTaskTargets(currentTask) && Mathf.randomBoolean(0.65f)) {
+                return currentTask;
+            }
+
+            Seq<Integer> alternatives = new Seq<>();
+            for (int candidate = 0; candidate < 3; candidate++) {
+                if (candidate != currentTask && hasTaskTargets(candidate)) alternatives.add(candidate);
+            }
+
+            if (!alternatives.isEmpty()) {
+                return alternatives.get(Mathf.random(alternatives.size - 1));
+            }
+
+            return currentTask >= 0 && hasTaskTargets(currentTask)
+                    ? currentTask : nextAvailableTask(currentTask);
         }
 
         public Tile pathfind(int pathTarget) {
             int costType = Pathfinder.costNeoplasm;
             Tile tile = this.tile;
             if (tile != null) {
-                Tile targetTile = pathfinderCustom.getTargetTileD4(tile, pathfinderCustom.getField(team, costType, pathTarget));
-                if (tile != targetTile) {
+                PathfinderCustom.Flowfield field = pathfinderCustom.getField(team, costType, pathTarget);
+                if (!field.hasTargets()) return null;
+
+                Tile targetTile = pathfinderCustom.getTargetTileD4(tile, field);
+                if (targetTile != null && tile != targetTile) {
                     return targetTile;
                 }
             }
@@ -234,18 +266,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             }
             if (Queue.size > 0) coverQueue(pipe);
 
-            if (growRestart >= 2){
-                if (task == PathfinderCustom.fieldVent) {
-                    task = PathfinderCustom.fieldOres;
-                    growRestart = 0;
-                } else if (task == PathfinderCustom.fieldOres) {
-                    task = PathfinderCustom.fieldCore;
-                    growRestart = 0;
-                } else {
-                    task = PathfinderCustom.fieldVent;
-                    growRestart = 0;
-                }
-                //if (!prev.ignorePath.contains(facingRot)) prev.ignorePath.add(facingRot);
+            if (growRestart >= 2) {
+                if (task < 0) task = PathfinderCustom.fieldVent;
+                task = nextAvailableTask(task);
+                growRestart = 0;
             }
 
             // Check periodically for a valid 2x2 drill site around this Cord.
