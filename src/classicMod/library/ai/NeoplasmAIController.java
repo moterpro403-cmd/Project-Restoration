@@ -22,6 +22,7 @@ public class NeoplasmAIController extends AIController {
 
     public Seq<Tile> DodgeTile = new Seq<>();
     private final ObjectSet<Tile> dodgeLookup = new ObjectSet<>();
+    private final Seq<Tile> nearbyDodgeBuffer = new Seq<>(8);
     public Seq<Unit> groups = new Seq<>();
 
     public boolean ignore;
@@ -138,6 +139,14 @@ public class NeoplasmAIController extends AIController {
         Tile best = null;
         float bestDistance = Float.MAX_VALUE;
 
+        // Cache only hazards close enough to intersect this local search area.
+        // Each candidate can then account for overlapping danger zones without
+        // rescanning distant historical markers.
+        nearbyDodgeBuffer.clear();
+        for (Tile danger : DodgeTile) {
+            if (danger != null && danger.dst(unit) <= 144f) nearbyDodgeBuffer.add(danger);
+        }
+
         // Search a symmetric area around the unit; the former -mid..range
         // bounds heavily favored the positive X/Y directions.
         for (int y = -mid; y <= mid; y++) {
@@ -147,7 +156,12 @@ public class NeoplasmAIController extends AIController {
                         tile.floor() == null || tile.floor().isLiquid ||
                         !unit.canPass(tile.x, tile.y)) continue;
 
-                if (closestDanger.dst(tile) < 80f) continue;
+                float clearance = closestDanger.dst(tile);
+                for (Tile danger : nearbyDodgeBuffer) {
+                    float dangerDistance = danger.dst(tile);
+                    if (dangerDistance < clearance) clearance = dangerDistance;
+                }
+                if (clearance < 80f) continue;
                 float unitDistance = unit.dst(tile);
                 if (unitDistance < 10f || unitDistance > 100f) continue;
 
