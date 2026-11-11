@@ -21,9 +21,10 @@ public class RSectorPresents extends SectorPresets {
             requireUnlock = false;
             rules = rules -> {
                 rules.waveTeam = Team.neoplastic;
-                rules.waves = false;
+                rules.waves = true;
                 rules.attackMode = true;
                 rules.winWave = 0;
+                rules.spawns.clear();
             };
         }};
     }
