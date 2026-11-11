@@ -463,6 +463,7 @@ public class ClassicMod extends Mod {
         PathfinderExtended.preloadAddons();
         PathfinderExtended.addonFieldTypes();
         NeoplasmFactionAI.init();
+        NeoplasmCampaignAI.init();
 
         RMusic.load();
 
