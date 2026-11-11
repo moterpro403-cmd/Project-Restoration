@@ -999,7 +999,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
         neoplasmCore = new NeoplasmFactionCore("neoplasm-faction-core"){{
             requirements(Category.effect, with(Items.beryllium, 150, Items.tungsten, 80));
             size = 3;
-            health = 3600f;
+            health = 3600;
             unitType = RUnitTypes.miserable;
             unitCapModifier = 30;
             forceTeam = mindustry.game.Team.neoplastic;
