@@ -19,6 +19,10 @@ public class RSectorPresents extends SectorPresets {
             alwaysUnlocked = true;
             showHidden = true;
             requireUnlock = true;
+            // Use a normal campaign launch loadout instead of requiring the
+            // destination map's stored resource list in the source core.
+            overrideLaunchDefaults = true;
+            allowLaunchLoadout = true;
             rules = rules -> {
                 rules.waveTeam = Team.neoplastic;
                 rules.waves = true;
