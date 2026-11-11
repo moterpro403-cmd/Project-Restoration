@@ -62,3 +62,7 @@ Storyline
 ## --- Starz ---
 
 [![Star History Chart](https://api.star-history.com/svg?repos=VvSeanGTvV/Project-Restoration&type=Date)](https://star-history.com/#VvSeanGTvV/Project-Restoration&Date)
+
+## Neoplasm faction (Mindustry 160.7)
+
+The mod now uses Mindustry's dedicated `Team.neoplastic` team instead of disguising the faction as Sharded or Crux. Place the editor-only **Neoplasm Core** on a map to establish a real faction core. It is forced to `Team.neoplastic`, seeds the original Cardius colony on a nearby usable steam vent, and lets the existing Cord network build drills, spawners and organic defenses. The faction's attack-capable units are coordinated by Mindustry's RTS AI. This is independent base gameplay, not a replacement wave-spawn queue.

@@ -419,6 +419,9 @@ public class RUnitTypes {
         blob = new NeoplasmUnitType("vesicle"){{
             constructor = CrawlUnit::create;
             useUnitCap = false;
+            // Keep the original SteamHugAI behavior for the tiny colony seed.
+            // Larger Neoplasm units can be directed by Team.neoplastic's RTS AI.
+            playerControllable = false;
 
             //controller = u -> new SteamHugAI();
             aiController = SteamHugAI::new;
