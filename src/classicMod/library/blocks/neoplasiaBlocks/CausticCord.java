@@ -16,6 +16,7 @@ import mindustry.ai.*;
 import mindustry.content.*;
 import mindustry.entities.*;
 import mindustry.gen.Building;
+import mindustry.game.Team;
 import mindustry.graphics.*;
 import mindustry.type.*;
 import mindustry.world.*;
@@ -97,6 +98,9 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         public int task = -1;
         private final float[] drawVertices = new float[24];
         private float drillScanTimer;
+        private final Seq<NeoplasmBuilding> availableDestinations = new Seq<>(4);
+
+        private boolean enemyUnitAt640, enemyGroundUnitAt220, enemyUnitAt120, enemyUnitAt30;
 
 
         @Nullable
@@ -227,14 +231,19 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 return currentTask;
             }
 
-            Seq<Integer> alternatives = new Seq<>();
+            // Reservoir sampling chooses uniformly without allocating a Seq.
+            int alternativeCount = 0;
+            int selectedAlternative = -1;
             for (int candidate = 0; candidate < 3; candidate++) {
-                if (candidate != currentTask && hasTaskTargets(candidate)) alternatives.add(candidate);
+                if (candidate != currentTask && hasTaskTargets(candidate)) {
+                    alternativeCount++;
+                    if (Mathf.random(alternativeCount - 1) == 0) {
+                        selectedAlternative = candidate;
+                    }
+                }
             }
 
-            if (!alternatives.isEmpty()) {
-                return alternatives.get(Mathf.random(alternatives.size - 1));
-            }
+            if (selectedAlternative >= 0) return selectedAlternative;
 
             return currentTask >= 0 && hasTaskTargets(currentTask)
                     ? currentTask : nextAvailableTask(currentTask);
@@ -346,6 +355,40 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             return total;
         }
 
+        /**
+         * Checks all enemy units in the largest Cord threat radius once, then
+         * records which smaller threat radii contain a valid target.
+         *
+         * Units.closestEnemy() would repeat essentially the same spatial-tree
+         * traversal for 640, 220, 120 and 30 world-unit ranges.
+         */
+        private void scanNearbyEnemyUnits() {
+            enemyUnitAt640 = false;
+            enemyGroundUnitAt220 = false;
+            enemyUnitAt120 = false;
+            enemyUnitAt30 = false;
+
+            if (team == Team.derelict) return;
+
+            Units.nearbyEnemies(team, x - 640f, y - 640f, 1280f, 1280f, enemy -> {
+                if (enemy.dead() || !enemy.type.killable || !enemy.type.hittable ||
+                        enemy.team == Team.derelict || !enemy.targetable(team) || enemy.inFogTo(team)) {
+                    return;
+                }
+
+                // Match Units.closestEnemy()'s hit-size-adjusted range test.
+                float distance2 = enemy.dst2(x, y) - enemy.hitSize * enemy.hitSize;
+                if (distance2 < 640f * 640f) {
+                    enemyUnitAt640 = true;
+                    if (distance2 < 120f * 120f) enemyUnitAt120 = true;
+                    if (distance2 < 30f * 30f) enemyUnitAt30 = true;
+                    if (enemy.isGrounded() && distance2 < 220f * 220f) {
+                        enemyGroundUnitAt220 = true;
+                    }
+                }
+            });
+        }
+
         @Override
         public void updateBeat() {
             boolean cordMode = true;
@@ -388,7 +431,9 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     cordMode = false;
                 }
 
-                if ((Units.closestEnemy(team, x, y, 220f, u -> u.type.killable && u.type.hittable && u.isGrounded()) != null)) {
+                scanNearbyEnemyUnits();
+
+                if (enemyGroundUnitAt220) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 60f, b -> (b.block == RBlocks.neoplasiaBomb)) != null;
                     if (!tooClose &&
                             left() == null &&
@@ -402,7 +447,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 // Pore is expensive long-range artillery. Keep a small faction-wide
                 // reserve instead of converting every front-line Cord into a missile pod.
                 if (team.data().getCount(RBlocks.pore) < 2 &&
-                        ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
+                        ((enemyUnitAt640) ||
                         (Units.findEnemyTile(team, x, y, 640f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild)
                         ) != null))) {
@@ -413,7 +458,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable) != null) ||
+                if (enemyUnitAt120 ||
                         (Units.findEnemyTile(team, x, y, 140f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild)
                         ) != null)) {
@@ -424,7 +469,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 30f, u -> u.type.killable && u.type.hittable) != null) ||
+                if (enemyUnitAt30 ||
                         (Units.findEnemyTile(team, x, y, 30f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild)
                         ) != null)) {
@@ -446,17 +491,17 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         @Override
         public void updateAfterBeat() {
             if (current != null){
-                Seq<NeoplasmBuilding> avaliable = new Seq<>();
+                availableDestinations.clear();
                 for (int i = 0; i < 4; i++){
                     NeoplasmBuilding dest = getNeoplasm(nearby(Mathf.mod(facingRot + i, 4)));
                     //NeoplasmBuilding dest = getNeoplasm(nearby(facingRot + i));
                     Item item = items.first();
-                    if (validBuilding(dest, item)) avaliable.add(dest);
+                    if (validBuilding(dest, item)) availableDestinations.add(dest);
                 }
-                if (avaliable.size > 0) {
-                    int selected = Mathf.clamp(Mathf.random(0, avaliable.size), 0, avaliable.size - 1);
+                if (availableDestinations.size > 0) {
+                    int selected = Mathf.clamp(Mathf.random(0, availableDestinations.size), 0, availableDestinations.size - 1);
                     Item item = items.first();
-                    Building dest = avaliable.get(selected);
+                    Building dest = availableDestinations.get(selected);
                     if (item != null && validBuilding(dest, item)) {
                         current = null;
                         items.clear();
