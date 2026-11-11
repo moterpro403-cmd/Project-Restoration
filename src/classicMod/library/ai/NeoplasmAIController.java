@@ -51,44 +51,62 @@ public class NeoplasmAIController extends AIController {
                 knownNeoplasms.add(neo);
                 neoplasmGroup.add(neo);
             }
+
+            // Dead-ally cleanup uses the same cadence as discovery. Checking the
+            // entire remembered group every frame multiplied this work by unit count.
+            deadUnitBuffer.clear();
+            for (Unit neoplasm : neoplasmGroup) {
+                if (neoplasm == null || !neoplasm.dead) continue;
+
+                Tile deadTile = neoplasm.tileOn();
+                if (deadTile != null && neoplasm.controller() instanceof NeoplasmAIController ai && !ai.ignore) {
+                    for (var point : GeometryPlus.d8plus) {
+                        Tile t = Vars.world.tile(deadTile.x + point.x, deadTile.y + point.y);
+                        if (t != null) DodgeTile.addUnique(t);
+                    }
+                }
+
+                deadUnitBuffer.add(neoplasm);
+                knownNeoplasms.remove(neoplasm);
+            }
+
+            neoplasmGroup.removeAll(deadUnitBuffer);
         } else {
             discoveryTimer -= Time.delta;
         }
-
-        // Reuse this buffer; allocating a new Seq every tick caused avoidable GC.
-        deadUnitBuffer.clear();
-        for (Unit neoplasm : neoplasmGroup) {
-            if (neoplasm == null) continue;
-            if (!neoplasm.dead) continue;
-
-            Tile deadTile = neoplasm.tileOn();
-            if (deadTile != null && neoplasm.controller() instanceof NeoplasmAIController ai && !ai.ignore) {
-                for (var point : GeometryPlus.d8plus) {
-                    Tile t = Vars.world.tile(deadTile.x + point.x, deadTile.y + point.y);
-                    if (t != null) DodgeTile.addUnique(t);
-                }
-            }
-
-            deadUnitBuffer.add(neoplasm);
-            knownNeoplasms.remove(neoplasm);
-        }
-
-        neoplasmGroup.removeAll(deadUnitBuffer);
 
         if (rerouteCooldown > 0f) rerouteCooldown -= Time.delta;
         super.updateUnit();
     }
 
+    /** Finds the nearest currently usable vent without copying the global vent list. */
+    private Tile closestAvailableVent(Building avoid) {
+        Tile best = null;
+        float bestDistance = Float.MAX_VALUE;
+
+        for (Tile candidate : PathfinderExtended.SteamVents) {
+            if (candidate == null || candidate.block() != Blocks.air ||
+                    candidate.build instanceof CausticHeart.HeartBuilding) continue;
+            if (avoid != null && candidate.dst(avoid) <= 80f) continue;
+
+            float distance = candidate.dst(unit);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
     @Nullable
     public Tile getClosestVent(boolean dontPlaceNearDangerous) {
-        Seq<Tile> avaliableVents = PathfinderExtended.SteamVents.copy().removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding || tile.block() != Blocks.air);
-        Tile vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
+        if (unit == null) return null;
 
-        if (vent == null) return null;
-        Building nearbyEnemyTile = Units.findEnemyTile(this.unit.team, vent.getX(), vent.getY(), 240f, building -> !building.dead);
-        if (dontPlaceNearDangerous && nearbyEnemyTile != null) avaliableVents = avaliableVents.copy().removeAll(tile -> tile.dst(nearbyEnemyTile) <= 80f);
-        vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
-        return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
+        Tile nearest = closestAvailableVent(null);
+        if (nearest == null || !dontPlaceNearDangerous) return nearest;
+
+        Building nearbyEnemyTile = Units.findEnemyTile(unit.team, nearest.getX(), nearest.getY(), 240f, building -> !building.dead);
+        return nearbyEnemyTile == null ? nearest : closestAvailableVent(nearbyEnemyTile);
     }
 
     @Nullable

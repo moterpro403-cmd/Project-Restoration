@@ -43,6 +43,7 @@ public class CausticSpawner extends NeoplasmBlock {
 
     public class CausticSpawnerBuild extends NeoplasmBuilding {
         public float progress, speedScl;
+        private boolean itemRequirementsDirty = true;
 
         public float fraction(){
             return progress / spawnTime;
@@ -60,6 +61,12 @@ public class CausticSpawner extends NeoplasmBlock {
             drawBeat(1 + sclOffset, 1 + sclOffset, 0.25f);
             if (topRegion.found()) Draw.rect(topRegion, x, y);
             Draw.reset();
+        }
+
+        @Override
+        public void handleItem(Building source, Item item) {
+            super.handleItem(source, item);
+            itemRequirementsDirty = true;
         }
 
         @Override
@@ -95,12 +102,13 @@ public class CausticSpawner extends NeoplasmBlock {
 
         public void updateEfficiency() {
             efficiency = hasRequiredItems() ? 1f : 0f;
+            itemRequirementsDirty = false;
         }
 
         @Override
         public void update() {
             super.update();
-            updateEfficiency();
+            if (itemRequirementsDirty) updateEfficiency();
 
             boolean canSpawn = spawnTime > 0f && spawn != null && Units.canCreate(team, spawn);
             if (efficiency > 0f && canSpawn) {
@@ -120,6 +128,7 @@ public class CausticSpawner extends NeoplasmBlock {
                     !hasRequiredItems() || !Units.canCreate(team, spawn)) return;
 
             consume();
+            itemRequirementsDirty = true;
             progress = Math.max(0f, progress - spawnTime);
             speedScl = 0f;
 
@@ -129,23 +138,29 @@ public class CausticSpawner extends NeoplasmBlock {
             unit.rotation(90f);
             unit.add();
 
-            if (selfDestruct){
-                    var dTile = proximityTiles.copy().removeAll(t -> !(t.build instanceof CausticCord.CordBuild));
-                    if(dTile.size > 0) {
-                        Tile ontile = dTile.get(Mathf.random(0, dTile.size - 1) % dTile.size);
-                        if (ontile.build != null && ontile.build instanceof CausticCord.CordBuild cordBuild) {
-                            for (int dy = -size; dy < size; dy++) {
-                                for (int dx = -size; dx < size; dx++) {
-                                    Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
-                                    if ((tile.build == this) && !cordBuild.Queue.contains(tile)) {
-                                        cordBuild.Queue.add(tile);
-                                    }
-                                }
-                            }
-                        }
-                        tile.setBlock(pipe, team);
+            if (selfDestruct) {
+                // Pick one adjacent Cord uniformly without allocating a filtered Seq.
+                Tile ontile = null;
+                int cordCount = 0;
+                for (Tile candidate : proximityTiles) {
+                    if (candidate.build instanceof CausticCord.CordBuild) {
+                        cordCount++;
+                        if (Mathf.random(cordCount - 1) == 0) ontile = candidate;
                     }
                 }
+
+                if (ontile != null && ontile.build instanceof CausticCord.CordBuild cordBuild) {
+                    for (int dy = -size; dy < size; dy++) {
+                        for (int dx = -size; dx < size; dx++) {
+                            Tile target = Vars.world.tile(ontile.x + dx, ontile.y + dy);
+                            if (target != null && target.build == this && !cordBuild.Queue.contains(target)) {
+                                cordBuild.Queue.add(target);
+                            }
+                        }
+                    }
+                    tile.setBlock(pipe, team);
+                }
+            }
             }
         }
     }

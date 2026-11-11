@@ -331,17 +331,33 @@ public class NeoplasmBlock extends Block {
             }
         }
 
-        public void takeBlood(){
-            for(int i = 0; i <proximity.size; ++i) {
-                Building other = proximity.get((i) % proximity.size);
+        /**
+         * Processes adjacent Neoplasm buildings in one traversal. The same
+         * adjacency list was previously walked once for blood sharing and a
+         * second time for growth readiness on every grown building update.
+         */
+        private void updateNeighbors(boolean checkGrowth) {
+            int size = proximity.size;
+            for (int i = 0; i < size; i++) {
+                Building other = proximity.get(i);
                 if (other instanceof NeoplasmBuilding neoplasmBuilding) {
                     if (!source && !neoplasmBuilding.deathImminent() && liquids.get(blood) < liquidCapacity) {
                         float amount = Math.min(liquidCapacity, neoplasmBuilding.liquids.get(blood));
                         neoplasmBuilding.liquids.remove(blood, amount);
                         liquids.add(blood, amount);
                     }
+
+                    if (checkGrowth && neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat &&
+                            !neoplasmBuilding.deathImminent() && isGrown() && neoplasmBuilding.isGrown()) {
+                        ready = true;
+                        grow = true;
+                    }
                 }
             }
+        }
+
+        public void takeBlood() {
+            updateNeighbors(false);
         }
 
         public boolean isGrown(){
@@ -351,7 +367,7 @@ public class NeoplasmBlock extends Block {
         @Override
         public void update() {
 
-            takeBlood();
+            updateNeighbors(grown);
             timer += delta();
             previousBeat += delta();
             if (timer >= 10f) {
@@ -367,16 +383,6 @@ public class NeoplasmBlock extends Block {
                 if (deathImminent()) deathTimer += delta();
                 else deathTimer = 0;
                 if (deathTimer >= 5) death();
-
-                for(int i = 0; i <proximity.size; ++i) {
-                    Building other = proximity.get((i) % proximity.size);
-                    if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                        if (neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat && !neoplasmBuilding.deathImminent() && isGrown() && neoplasmBuilding.isGrown()) {
-                            ready = true;
-                            grow = true;
-                        }
-                    }
-                }
 
                 if (ready && !alreadyBeat) {
                     if (beatTimer >= 2) {

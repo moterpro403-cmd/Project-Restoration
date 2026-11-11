@@ -31,6 +31,8 @@ import static classicMod.content.RVars.pathfinderCustom;
 import static mindustry.Vars.itemSize;
 
 public class CausticCord extends NeoplasmBlock implements Autotiler {
+    private static final int[][] drillOffsets = {{0, 0}, {-1, 0}, {0, -1}, {-1, -1}};
+
     public TextureRegion[] tiles;
     public TextureRegion[][] regions;
 
@@ -329,8 +331,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
          * regardless of which side the colony approached from.
          */
         private boolean tryConvertToDrill() {
-            int[][] offsets = {{0, 0}, {-1, 0}, {0, -1}, {-1, -1}};
-            for (int[] offset : offsets) {
+            for (int[] offset : drillOffsets) {
                 Tile origin = Vars.world.tile(tile.x + offset[0], tile.y + offset[1]);
                 if (origin != null && drillAreaAvailable(origin) && drillAreaHasOre(origin)) {
                     origin.setBlock(drill, team, rotation);

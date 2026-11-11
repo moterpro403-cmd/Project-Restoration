@@ -83,9 +83,7 @@ public class PathfinderExtended extends Pathfinder {
 
             for (Tile tile : Vars.world.tiles) {
                 if (tile.drop() != null || tile.wallDrop() != null) Ores.add(tile);
-            }
 
-            for (Tile tile : Vars.world.tiles) {
                 if (tile.floor() == null || tile.block() != Blocks.air) continue;
                 if (tile.floor().attributes.get(Attribute.steam) >= 1f) {
                     float steam = 0f;
