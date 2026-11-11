@@ -60,24 +60,30 @@ public class CausticSpawner extends NeoplasmBlock {
             Draw.reset();
         }
 
-        public void updateEfficiency(){
-            boolean hasItems = false;
-            for (var consume : consumeBuilder){
-                if (consume instanceof ConsumeItems consumeItems){
-                    for (var itemStack : consumeItems.items){
-                        hasItems = items.has(itemStack.item);
-                        if (hasItems) break;
+        private boolean hasRequiredItems() {
+            boolean hasItemConsumer = false;
+            for (var consume : consumeBuilder) {
+                if (consume instanceof ConsumeItems consumeItems) {
+                    hasItemConsumer = true;
+                    for (var itemStack : consumeItems.items) {
+                        if (!items.has(itemStack.item, itemStack.amount)) return false;
                     }
                 }
             }
-            efficiency = (hasItems) ? 1f : 0f;
+            return hasItemConsumer;
+        }
+
+        public void updateEfficiency() {
+            efficiency = hasRequiredItems() ? 1f : 0f;
         }
 
         @Override
         public void update() {
             super.update();
             updateEfficiency();
-            if (efficiency > 0){
+
+            boolean canSpawn = spawnTime > 0f && spawn != null && Units.canCreate(team, spawn);
+            if (efficiency > 0f && canSpawn) {
                 progress += edelta() * speedScl;
                 speedScl = Mathf.lerpDelta(speedScl, 1f, 0.05f);
             } else {
@@ -89,18 +95,21 @@ public class CausticSpawner extends NeoplasmBlock {
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
-            if (progress >= spawnTime){
-                consume();
-                progress %= 1f;
-                speedScl = 0f;
-                if (Units.canCreate(team, spawn)) {
-                    if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
-                    var unit = spawn.create(team);
-                    unit.set(this);
-                    unit.rotation(90f);
-                    unit.add();
-                }
-                if (selfDestruct){
+
+            if (spawnTime <= 0f || progress < spawnTime || spawn == null ||
+                    !hasRequiredItems() || !Units.canCreate(team, spawn)) return;
+
+            consume();
+            progress = Math.max(0f, progress - spawnTime);
+            speedScl = 0f;
+
+            if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
+            var unit = spawn.create(team);
+            unit.set(this);
+            unit.rotation(90f);
+            unit.add();
+
+            if (selfDestruct){
                     var dTile = proximityTiles.copy().removeAll(t -> !(t.build instanceof CausticCord.CordBuild));
                     if(dTile.size > 0) {
                         Tile ontile = dTile.get(Mathf.random(0, dTile.size - 1) % dTile.size);

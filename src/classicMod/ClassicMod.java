@@ -172,7 +172,15 @@ public class ClassicMod extends Mod {
     }
 
     public void getContributors() {
-        contributors = Seq.with(Core.files.internal("contributors").readString("UTF-8").split("\n"));
+        Fi source = Core.files.internal("contributors");
+        if (!source.exists()) source = Core.files.internal("Credits.txt");
+
+        if (source.exists()) {
+            contributors = Seq.with(source.readString("UTF-8").split("\\R"));
+        } else {
+            contributors = Seq.with("Project: Restoration");
+            Log.warn("Project: Restoration contributor list is missing; using a safe fallback.");
+        }
     }
 
     public static Func<String, String> getModBundle = value -> bundle.get("mod." + value);

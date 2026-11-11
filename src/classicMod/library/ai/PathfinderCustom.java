@@ -175,7 +175,8 @@ public class PathfinderCustom implements Runnable {
     }
 
     private void clearCache() {
-        this.cache = new Flowfield[256][5][5];
+        // Keep cache dimensions aligned with the registered path costs and field types.
+        this.cache = new Flowfield[256][costTypes.size][fieldTypes.size];
     }
 
     /** Packs a tile into its internal representation. */
@@ -761,24 +762,27 @@ public class PathfinderCustom implements Runnable {
         }
 
         protected void getPositions(IntSeq out) {
-            // Floor deposits must be approached on the deposit tile; wall deposits
-            // must be approached from an adjacent open tile because the wall itself
-            // is impassable to Neoplasm Cords.
-            for (Tile tile : Vars.world.tiles) {
-                if (tile == null) continue;
+            // PathfinderExtended builds this index once per world load. Reuse it here
+            // instead of rescanning every map tile on every 900 ms field refresh.
+            ObjectSet<Tile> added = new ObjectSet<>();
 
-                if (tile.block() == Blocks.air && RVars.CordCanDrill.contains(tile.drop())) {
-                    out.add(tile.array());
-                    continue;
+            for (Tile oreTile : PathfinderExtended.Ores) {
+                if (oreTile == null) continue;
+
+                if (oreTile.block() == Blocks.air && RVars.CordCanDrill.contains(oreTile.drop())) {
+                    if (added.add(oreTile)) out.add(oreTile.array());
                 }
 
-                if (tile.wallDrop() != null && RVars.CordCanDrill.contains(tile.wallDrop())) {
-                    for (Point2 direction : Geometry.d4) {
-                        Tile approach = Vars.world.tile(tile.x + direction.x, tile.y + direction.y);
-                        if (approach != null && approach.block() == Blocks.air &&
-                                approach.floor() != null && !approach.floor().isLiquid) {
-                            out.add(approach.array());
-                        }
+                var wallDrop = oreTile.wallDrop();
+                if (wallDrop == null || !RVars.CordCanDrill.contains(wallDrop)) continue;
+
+                // Wall deposits are impassable; route to an adjacent open tile.
+                for (Point2 direction : Geometry.d4) {
+                    Tile approach = Vars.world.tile(oreTile.x + direction.x, oreTile.y + direction.y);
+                    if (approach != null && approach.block() == Blocks.air &&
+                            approach.floor() != null && !approach.floor().isLiquid &&
+                            added.add(approach)) {
+                        out.add(approach.array());
                     }
                 }
             }
