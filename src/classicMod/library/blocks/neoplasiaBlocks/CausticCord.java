@@ -399,10 +399,13 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
+                // Pore is expensive long-range artillery. Keep a small faction-wide
+                // reserve instead of converting every front-line Cord into a missile pod.
+                if (team.data().getCount(RBlocks.pore) < 2 &&
+                        ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
                         (Units.findEnemyTile(team, x, y, 640f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild)
-                        ) != null)) {
+                        ) != null))) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 240f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.pore)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.pore);

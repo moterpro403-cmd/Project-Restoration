@@ -52,12 +52,30 @@ public class NeoplasmFactionCore extends CoreBlock{
 
     public class NeoplasmFactionCoreBuild extends CoreBuild{
         private float colonySeedTimer;
+        private float troopProductionTimer;
 
         @Override
         public void update(){
             super.update();
 
             if(team != Team.neoplastic || Vars.net.client() || Vars.state.isEditor()) return;
+
+            // Baseline infantry production: the faction must be able to field
+            // an army even while its first drills and organic pods are starting.
+            // Keep a hard cap on this core-produced unit type; specialized units
+            // still come from the original resource-fed Cord spawners.
+            troopProductionTimer += delta();
+            if(troopProductionTimer >= 60f * 45f &&
+                    team.data().countType(RUnitTypes.miserable) < 18 &&
+                    Units.canCreate(team, RUnitTypes.miserable)){
+                troopProductionTimer = 0f;
+                Unit troop = RUnitTypes.miserable.create(team);
+                troop.set(this);
+                troop.rotation(90f);
+                troop.add();
+                Units.notifyUnitSpawn(troop);
+                Fx.spawn.at(troop);
+            }
 
             // Give the colony time to load its world and vent index, then establish
             // one Cardius. After that, its original autonomous spread takes over.

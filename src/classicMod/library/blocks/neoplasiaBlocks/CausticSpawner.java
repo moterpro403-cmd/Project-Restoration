@@ -60,6 +60,24 @@ public class CausticSpawner extends NeoplasmBlock {
             Draw.reset();
         }
 
+        @Override
+        public boolean acceptItem(Building source, Item item) {
+            if (item == null) return false;
+
+            // Spawners previously inherited Building.acceptItem() == false,
+            // so the Cord network could never deliver their required materials.
+            // Only accept items this specific pod consumes, and stop at the
+            // configured amount to prevent unrelated stockpiling.
+            for (var consume : consumeBuilder) {
+                if (consume instanceof ConsumeItems consumeItems) {
+                    for (var stack : consumeItems.items) {
+                        if (stack.item == item && items.get(item) < stack.amount) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private boolean hasRequiredItems() {
             boolean hasItemConsumer = false;
             for (var consume : consumeBuilder) {
