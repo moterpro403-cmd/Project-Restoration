@@ -18,7 +18,7 @@ public class RSectorPresents extends SectorPresets {
             difficulty = 3;
             alwaysUnlocked = true;
             showHidden = true;
-            requireUnlock = false;
+            requireUnlock = true;
             rules = rules -> {
                 rules.waveTeam = Team.neoplastic;
                 rules.waves = true;
