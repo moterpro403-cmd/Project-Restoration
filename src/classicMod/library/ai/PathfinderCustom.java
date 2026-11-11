@@ -14,6 +14,7 @@ import arc.util.*;
 import classicMod.content.RVars;
 import classicMod.library.DirectionalGenerator;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
+import mindustry.content.Blocks;
 import mindustry.Vars;
 import mindustry.ai.Pathfinder;
 import mindustry.core.World;
@@ -174,7 +175,8 @@ public class PathfinderCustom implements Runnable {
     }
 
     private void clearCache() {
-        this.cache = new Flowfield[256][5][5];
+        // Keep cache dimensions aligned with the registered path costs and field types.
+        this.cache = new Flowfield[256][costTypes.size][fieldTypes.size];
     }
 
     /** Packs a tile into its internal representation. */
@@ -410,7 +412,7 @@ public class PathfinderCustom implements Runnable {
     public Tile getTargetTileDodge(Tile tile, Flowfield path, Seq<Tile> dangerTile) {
         if (tile == null) {
             return null;
-        } else if (!path.initialized) {
+        } else if (path == null || !path.initialized) {
             return tile;
         } else {
             if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > (long)path.refreshRate) {
@@ -435,8 +437,16 @@ public class PathfinderCustom implements Runnable {
             Point2[] var8 = DirectionalGenerator.generateDirections(6, false);
             int var9 = var8.length;
 
-            if (dangerTile.size > 0){
-                danger = dangerTile.copy().sort(tile1 -> tile1.dst(tile)).get(0);
+            if (dangerTile != null && !dangerTile.isEmpty()) {
+                float nearestDistance = Float.MAX_VALUE;
+                for (Tile dangerCandidate : dangerTile) {
+                    if (dangerCandidate == null) continue;
+                    float distance = dangerCandidate.dst(tile);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        danger = dangerCandidate;
+                    }
+                }
             }
 
             for(int var10 = 0; var10 < var9; ++var10) {
@@ -747,13 +757,34 @@ public class PathfinderCustom implements Runnable {
     }
 
     public static class OresField extends Flowfield {
-        //public Item OreTarget;
-
-        public OresField() {}
+        public OresField() {
+            refreshRate = 900;
+        }
 
         protected void getPositions(IntSeq out) {
-            for (Tile tile : Ores) {
-                if (RVars.CordCanDrill.contains(tile.wallDrop())) out.add(tile.array());
+            // PathfinderExtended builds this index once per world load. Reuse it here
+            // instead of rescanning every map tile on every 900 ms field refresh.
+            ObjectSet<Tile> added = new ObjectSet<>();
+
+            for (Tile oreTile : PathfinderExtended.Ores) {
+                if (oreTile == null) continue;
+
+                if (oreTile.block() == Blocks.air && RVars.CordCanDrill.contains(oreTile.drop())) {
+                    if (added.add(oreTile)) out.add(oreTile.array());
+                }
+
+                var wallDrop = oreTile.wallDrop();
+                if (wallDrop == null || !RVars.CordCanDrill.contains(wallDrop)) continue;
+
+                // Wall deposits are impassable; route to an adjacent open tile.
+                for (Point2 direction : Geometry.d4) {
+                    Tile approach = Vars.world.tile(oreTile.x + direction.x, oreTile.y + direction.y);
+                    if (approach != null && approach.block() == Blocks.air &&
+                            approach.floor() != null && !approach.floor().isLiquid &&
+                            added.add(approach)) {
+                        out.add(approach.array());
+                    }
+                }
             }
         }
     }

@@ -21,15 +21,25 @@ public class RVars extends Vars {
 
     public static PathfinderCustom pathfinderCustom;
 
-    /** What neoplasm can drill, this is important to prevent drilling unnecessary ores.
-     * TODO: Probably dynamic would be good here
-     **/
+    /** Ores the Neoplasm drill is allowed to extract. */
     public static Seq<Item> CordCanDrill = new Seq<>(
             new Item[]{
                     Items.beryllium,
                     Items.tungsten,
+                    Items.copper,
+                    Items.lead,
+                    Items.scrap,
+                    Items.coal,
+                    Items.titanium,
+                    Items.thorium,
+                    Items.sand
             }
     );
+
+    /** Add ores whose Item objects are registered by this mod after RItems.load(). */
+    public static void initDrillWhitelist() {
+        CordCanDrill.add(RItems.silver, RItems.goldPowder);
+    }
 
     @Override
     public void loadAsync() {

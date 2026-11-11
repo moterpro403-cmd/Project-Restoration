@@ -57,8 +57,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
     @Override
     public void init() {
-        for (int i = 0; i < 46; i++) {
-            tiles = new TextureRegion[]{Core.atlas.find(name + "-" + (i))};
+        // The bitmask maps to 47 sprites: cord-0 through cord-46.
+        tiles = new TextureRegion[47];
+        for (int i = 0; i < tiles.length; i++) {
+            tiles[i] = Core.atlas.find(name + "-" + i);
         }
         super.init();
     }
@@ -92,7 +94,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         public int xscl;
         public int yscl;
 
-        public int task = 0;
+        public int task = -1;
+        private final float[] drawVertices = new float[24];
+        private float drillScanTimer;
+
 
         @Nullable
         public CordBuild prev;
@@ -164,54 +169,86 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
-
             retry++;
             growRestart++;
+
             for (int a = 0; a < 4; a++) {
                 Tile man = nearbyTile(Mathf.mod(facingRot + a, 4));
-                if (man != null && backTile() != null && backTile() != man){
-                    if (man.build instanceof NeoplasmBuilding) {
-                        retry = 0;
-                        break;
-                    }
+                if (man != null && backTile() != null && backTile() != man && man.build instanceof NeoplasmBuilding) {
+                    retry = 0;
+                    break;
                 }
             }
 
-
-            // TODO better cordAI
-            task = (task != 0) ? task : PathfinderCustom.fieldVent;
+            // -1 means "not assigned". Field 0 is a valid objective (enemy core).
+            if (task < 0) task = PathfinderCustom.fieldVent;
             Tile next = pathfind(task);
 
-
-            if (
-                    passable(next, true)
-            ) {
+            // Do not treat an existing Cord, Heart, Drill, or other colony block
+            // as successful expansion. Only a newly placed Cord resets the retry.
+            if (next != null && next != this.tile && passable(next, true)
+                    && next.build == null && !CantReplace(next.block())) {
                 int rot = this.tile.relativeTo(next);
                 Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
                 Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                if (
-                        passable(nearRight, false)
-                        && passable(nearLeft, false)
-                ) {
-                    if (!CantReplace(next.block())) next.setBlock(RBlocks.cord, team);
-                    if (next.build != null && next.build instanceof CordBuild cordBuild) {
-                        cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
-                                Mathf.randomBoolean() ? PathfinderCustom.fieldOres : Mathf.randomBoolean() ? PathfinderCustom.fieldCore : PathfinderExtended.fieldVent;
+
+                if (passable(nearRight, false) && passable(nearLeft, false)) {
+                    next.setBlock(RBlocks.cord, team, rot);
+                    if (next.build instanceof CordBuild cordBuild && cordBuild != this) {
+                        cordBuild.task = chooseBranchTask(task);
                         cordBuild.facingRot = rot;
                         cordBuild.prev = this;
+                        growRestart = 0;
                     }
-                    growRestart = 0;
                 }
             }
+
             super.growCord(block);
+        }
+
+        /** Returns true only when this objective currently has live destinations. */
+        private boolean hasTaskTargets(int pathTarget) {
+            return pathfinderCustom != null &&
+                    pathfinderCustom.getField(team, Pathfinder.costNeoplasm, pathTarget).hasTargets();
+        }
+
+        /** Move to the next available objective instead of cycling through empty fields. */
+        private int nextAvailableTask(int currentTask) {
+            for (int step = 1; step <= 3; step++) {
+                int candidate = (currentTask + step) % 3;
+                if (hasTaskTargets(candidate)) return candidate;
+            }
+            return currentTask;
+        }
+
+        /** Keep most branches on their current objective, but let some explore alternatives. */
+        private int chooseBranchTask(int currentTask) {
+            if (currentTask >= 0 && hasTaskTargets(currentTask) && Mathf.randomBoolean(0.65f)) {
+                return currentTask;
+            }
+
+            Seq<Integer> alternatives = new Seq<>();
+            for (int candidate = 0; candidate < 3; candidate++) {
+                if (candidate != currentTask && hasTaskTargets(candidate)) alternatives.add(candidate);
+            }
+
+            if (!alternatives.isEmpty()) {
+                return alternatives.get(Mathf.random(alternatives.size - 1));
+            }
+
+            return currentTask >= 0 && hasTaskTargets(currentTask)
+                    ? currentTask : nextAvailableTask(currentTask);
         }
 
         public Tile pathfind(int pathTarget) {
             int costType = Pathfinder.costNeoplasm;
             Tile tile = this.tile;
             if (tile != null) {
-                Tile targetTile = pathfinderCustom.getTargetTileD4(tile, pathfinderCustom.getField(team, costType, pathTarget));
-                if (tile != targetTile) {
+                PathfinderCustom.Flowfield field = pathfinderCustom.getField(team, costType, pathTarget);
+                if (!field.hasTargets()) return null;
+
+                Tile targetTile = pathfinderCustom.getTargetTileD4(tile, field);
+                if (targetTile != null && tile != targetTile) {
                     return targetTile;
                 }
             }
@@ -229,31 +266,69 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             }
             if (Queue.size > 0) coverQueue(pipe);
 
-            if (growRestart >= 2){
-                if (task == PathfinderCustom.fieldVent) {
-                    task = PathfinderCustom.fieldOres;
-                    growRestart = 0;
-                } else if (task == PathfinderCustom.fieldOres) {
-                    task = PathfinderCustom.fieldCore;
-                    growRestart = 0;
-                } else {
-                    task = PathfinderCustom.fieldVent;
-                    growRestart = 0;
-                }
-                //if (!prev.ignorePath.contains(facingRot)) prev.ignorePath.add(facingRot);
+            if (growRestart >= 2) {
+                if (task < 0) task = PathfinderCustom.fieldVent;
+                task = nextAvailableTask(task);
+                growRestart = 0;
             }
 
-            this.block.nearbySide(tile.x, tile.y, Mathf.mod(facingRot, 4), 0, Tmp.p1);
-            int dx = (Geometry.d4x(facingRot) > 0) ? 1 : 0;
-            int dy = (Geometry.d4y(facingRot) > 0) ? 1 : 0;
-            Tile other = Vars.world.tile(Tmp.p1.x + dx, Tmp.p1.y + dy);
-            if (other != null && other.solid()) {
-                int spaces = calculateSpaces(drill.size, other.x, other.y);
-                Item drop = other.wallDrop();
-                if (drop != null && spaces >= drill.size * drill.size && CordCanDrill.contains(drop)) {
-                    tile.setBlock(RBlocks.neoplasiaDrill, team);
+            // Check periodically for a valid 2x2 drill site around this Cord.
+            // The site may contain floor ore or have an ore-bearing wall on any side.
+            if (tile == null || tile == Vars.emptyTile || tile.build != this) return;
+            drillScanTimer += delta();
+            if (drillScanTimer >= 20f) {
+                drillScanTimer = 0f;
+                if (tryConvertToDrill()) return;
+            }
+        }
+
+
+        private boolean mineableDrillOre(Item item) {
+            return item != null && item.hardness <= ((CausticDrill)drill).tier && CordCanDrill.contains(item);
+        }
+
+        /** Checks whether a 2x2 drill footprint can replace only air and Cords. */
+        private boolean drillAreaAvailable(Tile origin) {
+            for (Tile candidate : origin.getLinkedTilesAs(drill, tempTiles)) {
+                if (candidate == null) return false;
+                Block block = candidate.block();
+                if (block != Blocks.air && !(block instanceof CausticCord)) return false;
+            }
+            return true;
+        }
+
+        /** Looks for floor ore under the footprint or wall ore along its perimeter. */
+        private boolean drillAreaHasOre(Tile origin) {
+            Seq<Tile> footprint = origin.getLinkedTilesAs(drill, tempTiles);
+            for (Tile candidate : footprint) {
+                if (candidate != null && mineableDrillOre(candidate.drop())) return true;
+            }
+
+            for (Tile footprintTile : footprint) {
+                if (footprintTile == null) continue;
+                for (Point2 direction : Geometry.d4) {
+                    Tile wall = Vars.world.tile(footprintTile.x + direction.x, footprintTile.y + direction.y);
+                    if (wall != null && mineableDrillOre(wall.wallDrop())) return true;
                 }
             }
+            return false;
+        }
+
+        /**
+         * The Cord tile can sit on any of the four cells of a 2x2 building.
+         * Trying all four origins lets the drill fit beside a wall ore deposit,
+         * regardless of which side the colony approached from.
+         */
+        private boolean tryConvertToDrill() {
+            int[][] offsets = {{0, 0}, {-1, 0}, {0, -1}, {-1, -1}};
+            for (int[] offset : offsets) {
+                Tile origin = Vars.world.tile(tile.x + offset[0], tile.y + offset[1]);
+                if (origin != null && drillAreaAvailable(origin) && drillAreaHasOre(origin)) {
+                    origin.setBlock(drill, team, rotation);
+                    return true;
+                }
+            }
+            return false;
         }
 
         public int getTotal(Item item, int size){
@@ -324,10 +399,13 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
+                // Pore is expensive long-range artillery. Keep a small faction-wide
+                // reserve instead of converting every front-line Cord into a missile pod.
+                if (team.data().getCount(RBlocks.pore) < 2 &&
+                        ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
                         (Units.findEnemyTile(team, x, y, 640f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild)
-                        ) != null)) {
+                        ) != null))) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 240f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.pore)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.pore);
@@ -456,54 +534,50 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         protected void drawAt(float x, float y, int bits, float rotation, Autotiler.SliceMode slice) {
             Draw.z(Layer.blockUnder);
 
-            //drawBeat(xscl, yscl); //TODO SMOOTH TRAILING
-            TextureRegion textureRegion = (sliced(Core.atlas.find(name + "-" + bits), slice));
-            float color = Draw.getColor().toFloatBits(); // gets current packed RGBA float
+            // Resolve the selected frame once; the atlas is already cached during init.
+            TextureRegion frame = bits >= 0 && bits < tiles.length && tiles[bits] != null
+                    ? tiles[bits] : Core.atlas.find(name + "-" + bits);
+            TextureRegion textureRegion = sliced(frame, slice);
+            float color = Draw.getColor().toFloatBits();
 
             float xs = (xscl > 0) ? xscl + ((beat - 1f) * 1) : xscl - ((beat - 1f) * 1);
             float ys = (yscl > 0) ? yscl + ((beat - 1f) * 1) : yscl - ((beat - 1f) * 1);
-            float w = (float) (textureRegion.width) * textureRegion.scl() * xs, h = (float) (textureRegion.height) * textureRegion.scl() * -ys;
+            float w = (float)textureRegion.width * textureRegion.scl() * xs;
+            float h = (float)textureRegion.height * textureRegion.scl() * -ys;
             float u = textureRegion.u, u2 = textureRegion.u2;
             float v = textureRegion.v, v2 = textureRegion.v2;
-            Draw.color(new Color(1.0F, 1.0F, 1.0F, 1.0F).lerp(beatColor, (beat - 1)));
+            Draw.color(beatScratch.set(Color.white).lerp(beatColor, Mathf.clamp(beat - 1f)));
             float x0 = x - w / 2f;
             float y0 = y - h / 2f;
 
             boolean flipY = !(facingRot == 1);
             boolean flipX = !(facingRot == 3);
 
-            float stretchFactor = 6f; // or whatever feels right
+            float stretchFactor = 6f;
             float stretchFront = (((front() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchBack = (((back() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchLeft = (((left() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
             float stretchRight = (((right() instanceof NeoplasmBuilding neo) ? (neo.beat - 1) : 0f)) * stretchFactor;
-            float[] vertices = {
-                    // bottom-left
-                    x0 - ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f),
-                    y0 + ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f)
-                    , color, u, v, 0f,
 
-                    // bottom-right
-                    x0 + w + ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f),
-                    y0 + ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : (back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f)
-                    , color, u2, v, 0f,
+            float[] vertices = drawVertices;
+            vertices[0] = x0 - ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f);
+            vertices[1] = y0 + ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f);
+            vertices[2] = color; vertices[3] = u; vertices[4] = v; vertices[5] = 0f;
 
-                    // top-right
-                    x0 + w + ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f),
-                    y0 + h - ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : ((back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f))
-                    , color, u2, v2, 0f,
+            vertices[6] = x0 + w + ((left() instanceof NeoplasmBuilding && !flipX) ? stretchLeft : (right() instanceof NeoplasmBuilding && flipX) ? stretchRight : 0f);
+            vertices[7] = y0 + ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : (back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f);
+            vertices[8] = color; vertices[9] = u2; vertices[10] = v; vertices[11] = 0f;
 
-                    // top-left
-                    x0 - ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f),
-                    y0 + h - ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f)
-                    , color, u, v2, 0f
-            };
-            Draw.vert((sliced(Core.atlas.find(name + "-" + bits), slice)).texture, vertices, 0, vertices.length);
-            //Draw.rect(sliced(Core.atlas.find(name + "-" + bits), slice), x, y, rotation);
+            vertices[12] = x0 + w + ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f);
+            vertices[13] = y0 + h - ((front() instanceof NeoplasmBuilding && !flipY) ? stretchFront : ((back() instanceof NeoplasmBuilding && flipY) ? stretchBack : 0f));
+            vertices[14] = color; vertices[15] = u2; vertices[16] = v2; vertices[17] = 0f;
 
-            // Reset drawing properties
-            Draw.color();
-            Draw.scl();
+            vertices[18] = x0 - ((right() instanceof NeoplasmBuilding && !flipX) ? stretchRight : (left() instanceof NeoplasmBuilding && flipX) ? stretchLeft : 0f);
+            vertices[19] = y0 + h - ((back() instanceof NeoplasmBuilding && !flipY) ? stretchBack : (front() instanceof NeoplasmBuilding && flipY) ? stretchFront : 0f);
+            vertices[20] = color; vertices[21] = u; vertices[22] = v2; vertices[23] = 0f;
+
+            Draw.vert(textureRegion.texture, vertices, 0, vertices.length);
+            Draw.reset();
         }
 
         public void onProximityUpdate() {

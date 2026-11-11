@@ -61,18 +61,22 @@ public class CausticHeart extends NeoplasmBlock {
         @Override
         public void updateBeat() {
 
-            if (Mathf.chance(0.25) && getClosestVent() != null){
-                if (!Vars.net.client() && canCreate(team, unitType)) {
-                    unit = unitType.create(team);
+            Tile closestVent = getClosestVent();
+            boolean ventlessMap = PathfinderExtended.SteamVents.isEmpty();
+
+            // Preserve the original Vesicle behavior on vent maps. On maps with no
+            // vents at all, Cardius instead buds a basic ground troop so the
+            // campaign faction can still defend and attack.
+            if (Mathf.chance(0.25) && (closestVent != null || ventlessMap)){
+                UnitType spawnType = ventlessMap ? RUnitTypes.miserable : unitType;
+                if (!Vars.net.client() && canCreate(team, spawnType)) {
+                    unit = spawnType.create(team);
                     unit.set(this);
                     unit.rotation(90f);
                     unit.add();
-                    //unit.vel.y = launchVelocity;
                     for (int i = 0; i < 5; i++) {
                         Fx.neoplasiaSmoke.at(this.x + Mathf.random(1), this.y + Mathf.random(1));
                     }
-                    //Effect.shake(4f*1.5f, 5f, this);
-                    //units.add(unit);
                 }
             }
 

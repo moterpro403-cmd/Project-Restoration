@@ -107,7 +107,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
     interplanetaryAccelerator, //Endgame - Mindustry
 
-    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
+    ductJunction, cord, heart, neoplasmCore, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
     ;
 
     public void load() {
@@ -992,6 +992,19 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             size = 3;
             minEfficiency = 8.9999F;
             attribute = Attribute.steam;
+        }};
+
+        // The real faction anchor. This is a CoreBlock so Mindustry registers it
+        // for team core state, AI, respawns, enemy targeting and defeat checks.
+        neoplasmCore = new NeoplasmFactionCore("neoplasm-faction-core"){{
+            requirements(Category.effect, with(Items.beryllium, 150, Items.tungsten, 80));
+            size = 3;
+            health = 3600;
+            unitType = RUnitTypes.miserable;
+            unitCapModifier = 30;
+            forceTeam = mindustry.game.Team.neoplastic;
+            buildVisibility = BuildVisibility.editorOnly;
+            alwaysUnlocked = true;
         }};
 
         tole = new CausticTurret("neoplasm-tole"){{

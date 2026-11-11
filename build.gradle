@@ -70,8 +70,9 @@ jar{
         configurations.runtimeClasspath.collect{ it.isDirectory() ? it : zipTree(it) }
     }
 
-    from(rootDir){
+    from(rootDir) {
         include "mod.hjson"
+        include "Credits.txt"
     }
 
     from("assets/"){

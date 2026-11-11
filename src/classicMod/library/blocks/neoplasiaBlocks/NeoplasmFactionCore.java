@@ -1,0 +1,154 @@
+package classicMod.library.blocks.neoplasiaBlocks;
+
+import arc.Core;
+import arc.graphics.g2d.TextureRegion;
+import arc.math.Mathf;
+import arc.struct.Seq;
+import classicMod.content.RBlocks;
+import classicMod.content.RUnitTypes;
+import classicMod.library.ai.PathfinderExtended;
+import mindustry.Vars;
+import mindustry.content.Fx;
+import mindustry.entities.Units;
+import mindustry.gen.Unit;
+import mindustry.game.Team;
+import mindustry.world.Tile;
+import mindustry.world.blocks.storage.CoreBlock;
+
+/**
+ * A true Mindustry core for the Neoplasm faction.
+ *
+ * The CoreBlock base class is important: it registers with TeamData.cores,
+ * participates in enemy-core targeting and makes the faction defeatable.
+ * The existing Cardius remains the organic colony seed and expansion brain.
+ */
+public class NeoplasmFactionCore extends CoreBlock{
+
+    private static final String cardiusRegion = "neoplasm-cardius";
+
+    public NeoplasmFactionCore(String name){
+        super(name);
+        size = 3;
+        unitCapModifier = 30;
+        itemCapacity = 4000;
+        allowSpawn = true;
+        commandable = true;
+    }
+
+    @Override
+    public void load(){
+        super.load();
+
+        // Reuse the existing Cardius art so no placeholder core texture is needed.
+        TextureRegion cardius = Core.atlas.find(cardiusRegion);
+        if(cardius.found()){
+            region = cardius;
+            uiIcon = cardius;
+            fullIcon = cardius;
+        }
+    }
+
+    @Override
+    public TextureRegion[] icons(){
+        return new TextureRegion[]{region};
+    }
+
+    public class NeoplasmFactionCoreBuild extends CoreBuild{
+        private float colonySeedTimer;
+        private float troopProductionTimer;
+
+        @Override
+        public void update(){
+            super.update();
+
+            if(team != Team.neoplastic || Vars.net.client() || Vars.state.isEditor()) return;
+
+            // Baseline infantry production: the faction must be able to field
+            // an army even while its first drills and organic pods are starting.
+            // Keep a hard cap on this core-produced unit type; specialized units
+            // still come from the original resource-fed Cord spawners.
+            troopProductionTimer += delta();
+            if(troopProductionTimer >= 60f * 45f &&
+                    team.data().countType(RUnitTypes.miserable) < 18 &&
+                    Units.canCreate(team, RUnitTypes.miserable)){
+                troopProductionTimer = 0f;
+                Unit troop = RUnitTypes.miserable.create(team);
+                troop.set(this);
+                troop.rotation(90f);
+                troop.add();
+                Units.notifyUnitSpawn(troop);
+                Fx.spawn.at(troop);
+            }
+
+            // Give the colony time to load its world and vent index, then establish
+            // one Cardius. After that, its original autonomous spread takes over.
+            colonySeedTimer += delta();
+            if(colonySeedTimer < 60f * 3f) return;
+            colonySeedTimer = 0f;
+
+            if(team.data().getCount(RBlocks.heart) > 0) return;
+
+            Tile best = null;
+            float bestDistance = Float.MAX_VALUE;
+
+            for(Tile vent : PathfinderExtended.SteamVents){
+                if(vent == null || vent.build != null || !heartFootprintClear(vent)) continue;
+                if(!RBlocks.heart.canPlaceOn(vent, team, 0)) continue;
+
+                float distance = Mathf.dst(x, y, vent.worldx(), vent.worldy());
+                if(distance < bestDistance){
+                    bestDistance = distance;
+                    best = vent;
+                }
+            }
+
+            // Campaign maps are not guaranteed to contain steam vents. When none
+            // exists, establish Cardius on nearby open ground so the faction still
+            // starts its organic colony instead of remaining a lone Core.
+            if(best == null){
+                best = findFallbackCardiusSite();
+            }
+
+            if(best != null){
+                best.setBlock(RBlocks.heart, team, 0);
+                Fx.neoplasiaSmoke.at(best.worldx(), best.worldy());
+            }
+        }
+
+        private Tile findFallbackCardiusSite(){
+            Tile best = null;
+            float bestDistance = Float.MAX_VALUE;
+
+            for(int dy = -18; dy <= 18; dy++){
+                for(int dx = -18; dx <= 18; dx++){
+                    float distance = Mathf.dst(dx, dy, 0f, 0f);
+                    // Keep the two 3x3 structures separate, but seed Cardius
+                    // close enough that it immediately becomes part of the base.
+                    if(distance < 4f || distance > 18f || distance >= bestDistance) continue;
+
+                    Tile candidate = Vars.world.tile(tile.x + dx, tile.y + dy);
+                    if(candidate == null || !heartFootprintClear(candidate)) continue;
+
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
+        }
+
+        private boolean heartFootprintClear(Tile center){
+            // Cardius is 3x3. Never overwrite unrelated structures or place it
+            // on liquid/deep/solid terrain when using the no-vent fallback.
+            for(int dy = -1; dy <= 1; dy++){
+                for(int dx = -1; dx <= 1; dx++){
+                    Tile tile = Vars.world.tile(center.x + dx, center.y + dy);
+                    if(tile == null) return false;
+                    if(tile.build != null && !(tile.build instanceof CausticCord.CordBuild)) return false;
+                    if(tile.floor().isLiquid || tile.floor().isDeep() || tile.solid()) return false;
+                }
+            }
+            return true;
+        }
+    }
+}

@@ -19,11 +19,10 @@ public class CausticCrafter extends NeoplasmBlock{
 
     public class CausticCrafterBuild extends NeoplasmBuilding {
         int beat = 0;
-        public void ConvertTo(Item toItem, Item fromItem){
+        public void ConvertTo(Item toItem, Item fromItem) {
             if (toItem == null || fromItem == null || !items.has(fromItem)) return;
-            int total = 1;
-            items.remove(fromItem, total);
-            items.add(toItem, total);
+            items.remove(fromItem, 1);
+            items.add(toItem, 1);
         }
         
         @Override
@@ -45,13 +44,17 @@ public class CausticCrafter extends NeoplasmBlock{
         @Override
         public void updateBeat() {
             growCord(pipe);
-            beat++;
-            if (beat >= perBeat) {
-                beat = 0;
-                if (craftEffect != null) craftEffect.at(x, y, to.color);
+
+            // A zero value historically means one conversion per beat.
+            int interval = Math.max(1, perBeat);
+            beat = Math.min(beat + 1, interval);
+            if (beat >= interval && from != null && to != null && items.has(from)) {
                 ConvertTo(to, from);
+                if (craftEffect != null) craftEffect.at(x, y, to.color);
                 this.dump(to);
+                beat = 0;
             }
+
             super.updateBeat();
         }
     }
