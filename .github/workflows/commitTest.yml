@@ -2,9 +2,6 @@ name: Build Mod
 
 on: [push, pull_request, workflow_dispatch]
 
-permissions:
-  contents: write
-
 jobs:
   buildJar:
     runs-on: ubuntu-latest
@@ -13,157 +10,15 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set up PATH
         run: |
-          echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/build-tools/34.0.0" >> $GITHUB_PATH
       - name: Set up JDK 17
         uses: actions/setup-java@v1
         with:
           java-version: 17
-
-      - name: Apply staged Neoplasm routing update
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Stage routing archive')
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          import zipfile
-
-          archive = Path(".merge/Neoplasm-Heatmap-Routing-Update.zip")
-          expected = {
-              "src/classicMod/library/ai/NeoplasmDeathHeatmap.java",
-              "src/classicMod/library/ai/NeoplasmStrategicPathfinder.java",
-              "src/classicMod/library/ai/NeoplasmFlyingAI.java",
-              "src/classicMod/library/ai/NeoplasmAIController.java",
-              "src/classicMod/library/ai/NeoplasmGroundAI.java",
-          }
-
-          if not archive.is_file():
-              raise SystemExit("Routing archive is missing.")
-          with zipfile.ZipFile(archive) as z:
-              names = {n for n in z.namelist() if not n.endswith("/")}
-              if names != expected:
-                  raise SystemExit(f"Unexpected archive contents: {sorted(names)}")
-              bad = z.testzip()
-              if bad:
-                  raise SystemExit(f"Corrupt ZIP member: {bad}")
-              for name in sorted(expected):
-                  target = Path(name)
-                  target.parent.mkdir(parents=True, exist_ok=True)
-                  target.write_bytes(z.read(name))
-
-          controller_path = Path("src/classicMod/library/ai/NeoplasmAIController.java")
-          controller = controller_path.read_text(encoding="utf-8")
-          pattern = r"(?ms)^    private float revisitPenalty\(Tile tile\) \{.*?^    \}"
-          replacement = (
-              "    /** Strong revisit penalty discourages oscillation without forbidding legitimate retreats. */\n"
-              "    private float revisitPenalty(Tile tile) {\n"
-              "        if (tile == null) return 0f;\n"
-              "        int index = tile.array();\n"
-              "        for (int age = 0; age < recentTileCount; age++) {\n"
-              "            int position = (recentTileCursor - 1 - age + recentTiles.length) % recentTiles.length;\n"
-              "            if (recentTiles[position] == index) return 28f - age * 0.8f;\n"
-              "        }\n"
-              "        return 0f;\n"
-              "    }"
-          )
-          controller, count = re.subn(pattern, replacement, controller, count=1)
-          if count != 1:
-              raise SystemExit("Could not safely restore the stronger revisit-penalty method.")
-
-          controller = controller.replace("revisitPenalty(best) < 6f", "revisitPenalty(best) < 20f")
-          controller = controller.replace("revisitPenalty(best) >= 6f", "revisitPenalty(best) >= 20f")
-          controller = controller.replace("private int riskInterval = 4;", "private int riskInterval = 5;")
-          controller = controller.replace("riskInterval = 4;", "riskInterval = 5;")
-          controller, count = re.subn(
-              r"riskInterval = distance2 > 2560f \* 2560f \? 8\s*: distance2 > 1024f \* 1024f \? 4 : 2;",
-              "riskInterval = distance2 > 2560f * 2560f ? 10\n                        : distance2 > 1024f * 1024f ? 5 : 2;",
-              controller, count=1
-          )
-          if count != 1:
-              raise SystemExit("Could not safely locate the AI risk-check schedule.")
-          controller = controller.replace("avoidUntil = Time.time + 5f;", "avoidUntil = Time.time + 6f;")
-          controller = controller.replace("strategicUntil = Time.time + 5f;", "strategicUntil = Time.time + 6f;")
-          for required in ("return 28f - age * 0.8f;", "revisitPenalty(best) < 20f",
-                           "revisitPenalty(best) >= 20f", "? 10", "? 5 : 2"):
-              if required not in controller:
-                  raise SystemExit(f"Missing controller safeguard: {required}")
-          if "revisitPenalty(best) < 6f" in controller or "revisitPenalty(best) >= 6f" in controller:
-              raise SystemExit("Weak revisit thresholds remain.")
-          controller_path.write_text(controller, encoding="utf-8")
-
-          strategic_path = Path("src/classicMod/library/ai/NeoplasmStrategicPathfinder.java")
-          strategic = strategic_path.read_text(encoding="utf-8")
-          if strategic.count("private static final float trafficRefreshTicks = 60f;") != 1:
-              raise SystemExit("Could not safely locate the traffic refresh setting.")
-          if strategic.count("private static final int maxCachedRoutes = 24;") != 1:
-              raise SystemExit("Could not safely locate the route-cache limit.")
-          strategic = strategic.replace(
-              "private static final float trafficRefreshTicks = 60f;",
-              "private static final float trafficRefreshTicks = 120f;", 1)
-          strategic = strategic.replace(
-              "private static final int maxCachedRoutes = 24;",
-              "private static final int maxCachedRoutes = 12;", 1)
-          strategic_path.write_text(strategic, encoding="utf-8")
-
-          heatmap_path = Path("src/classicMod/library/ai/NeoplasmDeathHeatmap.java")
-          heatmap = heatmap_path.read_text(encoding="utf-8")
-          heatmap = heatmap.replace(
-              "(double)i * decayStepMillis / halfLifeMillis",
-              "(double)i * decayStepTicks / halfLifeTicks")
-          heatmap = heatmap.replace("updated = new long[size];", "updated = new float[size];")
-          if "decayStepTicks" not in heatmap or "updated = new float[size];" not in heatmap:
-              raise SystemExit("Heatmap compile-safety checks failed.")
-          heatmap_path.write_text(heatmap, encoding="utf-8")
-
-          print("Applied five routing files; restored anti-loop strength; kept 10/5/2 risk cadence; reduced mobile cache/scan load.")
-          PY
-
       - name: Build mod jar
         run: ./gradlew deploy
-
-      - name: Save routing update to branch
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Stage routing archive')
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f .merge/Neoplasm-Heatmap-Routing-Update.zip
-          rmdir .merge 2>/dev/null || true
-          cat > .github/workflows/commitTest.yml <<'YAML'
-          name: Build Mod
-
-          on: [push, pull_request, workflow_dispatch]
-
-          jobs:
-            buildJar:
-              runs-on: ubuntu-latest
-
-              steps:
-                - uses: actions/checkout@v2
-                - name: Set up PATH
-                  run: |
-                    echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
-                - name: Set up JDK 17
-                  uses: actions/setup-java@v1
-                  with:
-                    java-version: 17
-                - name: Build mod jar
-                  run: ./gradlew deploy
-                - name: Upload built jar file
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: Project-Restoration
-                    path: build/libs/Project-Restoration.jar
-          YAML
-          git add src/classicMod/library/ai/NeoplasmDeathHeatmap.java
-          git add src/classicMod/library/ai/NeoplasmStrategicPathfinder.java
-          git add src/classicMod/library/ai/NeoplasmFlyingAI.java
-          git add src/classicMod/library/ai/NeoplasmAIController.java
-          git add src/classicMod/library/ai/NeoplasmGroundAI.java
-          git add .github/workflows/commitTest.yml
-          git commit -m "Add heatmap-aware Neoplasm routing"
-          git push origin HEAD:$GITHUB_REF_NAME
-
       - name: Upload built jar file
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Restoration-routing-update
-          path: build/libs/Project-Restoration.jar
+          name: ${{ github.event.repository.name }}
+          path: build/libs/${{ github.event.repository.name }}.jar
