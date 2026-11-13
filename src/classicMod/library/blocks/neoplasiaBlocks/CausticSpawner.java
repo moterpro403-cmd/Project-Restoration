@@ -85,34 +85,35 @@ public class CausticSpawner extends NeoplasmBlock {
         }
 
         @Override
+                @Override
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
-            if (progress >= spawnTime && spawn != null && Units.canCreate(team, spawn) && NeoplasmBlock.trySpawn(team)) {
+            if (progress >= spawnTime){
                 consume();
-                progress = 0f;
+                progress %= 1f;
                 speedScl = 0f;
-                if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
-                var unit = spawn.create(team);
-                unit.set(this);
-                unit.rotation(90f);
-                unit.add();
+                if (Units.canCreate(team, spawn)) {
+                    if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
+                    var unit = spawn.create(team);
+                    unit.set(this);
+                    unit.rotation(90f);
+                    unit.add();
+                }
                 if (selfDestruct){
                     var dTile = proximityTiles.copy().removeAll(t -> !(t.build instanceof CausticCord.CordBuild));
-                    if(dTile.size > 0) {
-                        Tile ontile = dTile.get(Mathf.random(0, dTile.size - 1) % dTile.size);
-                        if (ontile.build != null && ontile.build instanceof CausticCord.CordBuild cordBuild) {
-                            for (int dy = -size; dy < size; dy++) {
-                                for (int dx = -size; dx < size; dx++) {
-                                    Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
-                                    if ((tile.build == this) && !cordBuild.Queue.contains(tile)) {
-                                        cordBuild.Queue.add(tile);
-                                    }
+                    Tile ontile = dTile.get(Mathf.random(0, dTile.size - 1) % dTile.size);
+                    if (ontile.build != null && ontile.build instanceof CausticCord.CordBuild cordBuild){
+                        for (int dy = -size; dy < size; dy++) {
+                            for (int dx = -size; dx < size; dx++) {
+                                Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
+                                if ((tile.build == this) && !cordBuild.Queue.contains(tile)) {
+                                    cordBuild.Queue.add(tile);
                                 }
                             }
                         }
-                        tile.setBlock(pipe, team);
                     }
+                    tile.setBlock(pipe, team);
                 }
             }
         }
