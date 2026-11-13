@@ -63,6 +63,7 @@ public class NeoplasmAIController extends AIController {
         }
         if(Math.floorMod(tick + unit.id, riskInterval) != 0) return false;
         lastRiskDecisionTick = tick;
+        NeoplasmPerfMonitor.riskDecision();
         return true;
     }
 
@@ -137,6 +138,7 @@ public class NeoplasmAIController extends AIController {
      */
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
+        NeoplasmPerfMonitor.pathRequest();
         if (tile == null || unit == null || RVars.pathfinderCustom == null || !shouldUpdateRisk()) return null;
 
         // Prefer a whole-route danger-aware path before applying the local fallback.

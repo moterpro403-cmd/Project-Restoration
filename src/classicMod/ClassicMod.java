@@ -13,6 +13,7 @@ import arc.struct.*;
 import arc.util.*;
 import classicMod.content.*;
 import classicMod.library.EventTypeExtended;
+import classicMod.library.blocks.neoplasiaBlocks.NeoplasmCordNetwork;
 import classicMod.library.ai.*;
 import classicMod.library.ui.UIExtended;
 import classicMod.library.ui.dialog.*;
@@ -354,6 +355,8 @@ public class ClassicMod extends Mod {
 
             t.pref(new UIExtended.Separator("restored-content-menu"));
             t.checkPref("content-use-new-sound", false);
+            t.pref(new UIExtended.Separator("restored-neoplasm-profiler"));
+            t.checkPref("neoplasm-profiler", false);
 
             t.row();
             if (false) {
@@ -439,6 +442,8 @@ public class ClassicMod extends Mod {
     public void loadContent() {
         registerConstructors();
         NeoplasmDeathHeatmap.init();
+        NeoplasmCordNetwork.init();
+        NeoplasmPerfMonitor.init();
 
         useNewSound = settings.getBool("content-use-new-sound");
         new RItems().load();

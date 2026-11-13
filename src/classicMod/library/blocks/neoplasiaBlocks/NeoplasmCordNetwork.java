@@ -69,6 +69,7 @@ public final class NeoplasmCordNetwork {
 
         if(nextScan >= 0f && Time.time < nextScan) return;
         nextScan = Time.time + scanInterval;
+        NeoplasmPerfMonitor.cordScan();
 
         // Reuse the per-team map instead of allocating a world-sized boolean
         // array for every Heart on every scan.
@@ -136,6 +137,7 @@ public final class NeoplasmCordNetwork {
         repairKeys.remove(request.key);
 
         if(request.start == null || request.team == null || isConnected(request.team, request.start)) return;
+        NeoplasmPerfMonitor.cordRepair();
         tryReconnect(request.start, request.team, request.maxRadius);
     }
 

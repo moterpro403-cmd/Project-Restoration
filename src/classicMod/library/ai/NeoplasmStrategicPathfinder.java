@@ -111,6 +111,7 @@ public final class NeoplasmStrategicPathfinder {
 
     private static RouteField build(Team team, PathfinderCustom.Flowfield base,
                                     int[] explicitTargets, int targetHash, int revision, long now){
+        NeoplasmPerfMonitor.routeBuild();
         int width = base.width, height = base.height;
         int length = width * height;
         if(length <= 0 || RVars.pathfinderCustom.tiles == null
@@ -195,6 +196,7 @@ public final class NeoplasmStrategicPathfinder {
     }
 
     private static void buildTurretRisk(Team team, float[] risk, int width, int height){
+        NeoplasmPerfMonitor.turretScan();
         for(Tile turretTile : Vars.world.tiles){
             if(!(turretTile.build instanceof Turret.TurretBuild turretBuild)
                 || !turretBuild.isValid() || turretBuild.team == team) continue;
@@ -339,6 +341,7 @@ public final class NeoplasmStrategicPathfinder {
             return cached;
         }
 
+        NeoplasmPerfMonitor.trafficScan();
         float[] density = new float[width * height];
         Groups.unit.each(other -> {
             if(other == null || other.team != team || other.dead() || !other.isAdded()) return;

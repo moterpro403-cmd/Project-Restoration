@@ -385,10 +385,6 @@ public class NeoplasmBlock extends Block {
         @Override
         public void update() {
 
-            // Keep global cord-repair bookkeeping on its once-per-tick guard.
-            // This call is cheap for subsequent Neoplasm buildings in the same tick.
-            NeoplasmCordNetwork.update();
-
             // Cords are maintained by the network manager, not by fragile visual
             // pulse timing. Keep all mature cord segments alive; disconnected ones
             // are actively repaired by CordBuild instead of exploding.
