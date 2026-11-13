@@ -305,10 +305,6 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void updateBeat() {
-            // Reset the inherited inactivity timer whenever this cord receives a beat.
-            // Without this, grown cords reach the 600-tick death timeout and self-destruct.
-            super.updateBeat();
-
             boolean cordMode = true;
             if (grow) { //TODO some AI strategy block
                 if (
