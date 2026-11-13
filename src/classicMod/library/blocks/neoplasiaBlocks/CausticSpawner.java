@@ -85,7 +85,6 @@ public class CausticSpawner extends NeoplasmBlock {
         }
 
         @Override
-                @Override
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
