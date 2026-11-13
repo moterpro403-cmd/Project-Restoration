@@ -653,6 +653,44 @@ public final class NeoplasmStrategicPathfinder {
         }
     }
 
+    /** Returns the cached fortification/turret threat at a tile (0 if safe). */
+    public static float getTileThreat(Team team, Tile tile) {
+        if (team == null || tile == null || Vars.world == null) return 0f;
+        int width = Vars.world.width();
+        int height = Vars.world.height();
+        int idx = tile.array();
+        if (idx < 0 || idx >= width * height) return 0f;
+        ThreatField threat = getThreatField(team, width, height);
+        return threat != null && idx < threat.risk.length ? threat.risk[idx] : 0f;
+    }
+
+    /** Returns corridor narrowness [0..1], where 1 is a tight chokepoint. */
+    public static float getTileChokepoint(Team team, Tile tile) {
+        if (team == null || tile == null || Vars.world == null) return 0f;
+        int width = Vars.world.width();
+        int height = Vars.world.height();
+        int idx = tile.array();
+        if (idx < 0 || idx >= width * height) return 0f;
+        ThreatField threat = getThreatField(team, width, height);
+        return threat != null && idx < threat.openness.length ? threat.openness[idx] : 0f;
+    }
+
+    /** Returns cached strategic route distance to a shared flowfield target. */
+    public static float getStrategicDistance(Tile tile, Team team, int costType, int pathTarget) {
+        if (tile == null || team == null || Vars.world == null || RVars.pathfinderCustom == null) {
+            return Float.POSITIVE_INFINITY;
+        }
+        PathfinderCustom.Flowfield base = RVars.pathfinderCustom.getField(team, costType, pathTarget);
+        if (base == null || !base.initialized || !base.hasTargets() || base.resolution != 1) {
+            return Float.POSITIVE_INFINITY;
+        }
+        long key = key(team, costType, pathTarget, false);
+        RouteField route = getOrBuild(key, team, costType, base, null, 0f);
+        int idx = tile.array();
+        if (route == null || idx < 0 || idx >= route.distance.length) return Float.POSITIVE_INFINITY;
+        return route.distance[idx];
+    }
+
     public static void clear() {
         fields.clear();
         threatFields.clear();
