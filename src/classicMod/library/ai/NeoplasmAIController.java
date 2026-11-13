@@ -15,6 +15,13 @@ public class NeoplasmAIController extends AIController {
     public boolean update;
     public boolean ignore;
 
+    /** Every Neoplasm controller records its own route history automatically. */
+    @Override
+    public void updateUnit() {
+        updateNeoplasmTracking();
+        super.updateUnit();
+    }
+
     // Short per-unit history prevents repeatedly reversing between the same tiles.
     private final int[] recentTiles = new int[16];
     private int recentTileCursor;
