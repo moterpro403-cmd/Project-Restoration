@@ -102,15 +102,73 @@ public class NeoplasmAIController extends AIController {
     }
 
     
-    // Compatibility hooks for specialized controllers. The original Neoplasm
-    // controller keeps its original pathing behavior; these hooks let variants
-    // opt into their own steering without forcing extra scans on every unit.
+    /**
+     * Finds the closest remembered death tile. The memory is shared across the
+     * Neoplasm controller family, but each controller keeps its own group state.
+     */
+    @Nullable
+    public Tile closestDanger() {
+        if (DodgeTile.isEmpty()) return null;
+        return DodgeTile.copy().sort(tile -> tile.dst(unit)).first();
+    }
+
+    /**
+     * Selects a nearby open land tile that is outside the remembered danger
+     * radius and remains biased toward the unit's original destination.
+     * Null means no safe alternative was found.
+     */
+    @Nullable
+    protected Tile getClosestSafeTarget(int range, Tile danger, Tile destination) {
+        if (danger == null || destination == null || unit == null) return null;
+
+        int mid = range / 2;
+        Seq<Tile> safeTiles = new Seq<>();
+
+        for (int y = -mid; y < range; y++) {
+            for (int x = -mid; x < range; x++) {
+                Tile candidate = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
+                if (candidate != null
+                    && candidate.block() == Blocks.air
+                    && candidate.floor() != null
+                    && !candidate.floor().isLiquid
+                    && danger.dst(candidate) >= 80f) {
+                    safeTiles.add(candidate);
+                }
+            }
+        }
+
+        if (safeTiles.isEmpty()) return null;
+        return safeTiles.sort(candidate -> candidate.dst(destination)).first();
+    }
+
+    /**
+     * Moves around a remembered death area without abandoning the real target.
+     * Returns false when no safe step exists so normal movement can continue.
+     */
     protected boolean avoidNearbyDanger(Tile destination) {
-        return false;
+        if (destination == null) return false;
+
+        Tile current = unit.tileOn();
+        Tile danger = closestDanger();
+        if (current == null || danger == null || danger.dst(current) >= 80f) return false;
+
+        Tile safeTarget = getClosestSafeTarget(15, danger, destination);
+        if (safeTarget == null) safeTarget = getEdgeEscapeTile();
+
+        if (safeTarget == null || safeTarget == current) return false;
+
+        unit.movePref(vec.set(safeTarget.worldx(), safeTarget.worldy()).sub(unit).limit(unit.speed()));
+        return true;
     }
 
     public void routeAir() {
         if (target == null) return;
+
+        // Apply the PC death-memory reroute when a safe step is available.
+        // If avoidance cannot find one, preserve the original direct target movement.
+        Tile destination = target.tileOn();
+        if (destination != null && avoidNearbyDanger(destination)) return;
+
         vec.set(target.getX() - unit.x, target.getY() - unit.y);
         if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
     }
