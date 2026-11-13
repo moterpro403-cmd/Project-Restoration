@@ -101,6 +101,12 @@ public class NeoplasmAIController extends AIController {
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
         if (tile == null || unit == null || RVars.pathfinderCustom == null) return null;
 
+        // Prefer a whole-route danger-aware path before applying the local fallback.
+        Tile strategic = NeoplasmStrategicPathfinder.nextStep(
+            tile, unit.team, unit.type.flowfieldPathType, pathTarget
+        );
+        if (strategic != null && strategic != tile) return strategic;
+
         var field = RVars.pathfinderCustom.getField(unit.team, unit.type.flowfieldPathType, pathTarget);
         if (field == null || !field.initialized || !field.hasTargets()) return null;
 
@@ -231,6 +237,27 @@ public class NeoplasmAIController extends AIController {
         if (destination != null && avoidNearbyDanger(destination)) return;
         vec.set(target.getX() - unit.x, target.getY() - unit.y);
         if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
+    }
+
+    /**
+     * Uses a cached team-wide strategic field to approach a specific building
+     * by the safest available route. Returns false when the normal movement AI
+     * should retain control.
+     */
+    public boolean applyStrategicTarget(Tile destination, float stopDistance, int costType) {
+        if (unit == null || destination == null || RVars.pathfinderCustom == null) return false;
+        if (unit.within(destination.worldx(), destination.worldy(), stopDistance)) return false;
+
+        Tile current = unit.tileOn();
+        if (current == null) return false;
+
+        Tile next = NeoplasmStrategicPathfinder.nextStepTo(
+            current, destination, unit.team, costType
+        );
+        if (next == null || next == current) return false;
+
+        unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
+        return true;
     }
 
     public boolean applyDodgePathfind(int pathTarget) {

@@ -3,6 +3,7 @@ package classicMod.library.ai;
 import arc.math.Mathf;
 import arc.math.Rand;
 import mindustry.ai.types.FlyingAI;
+import classicMod.library.ai.PathfinderCustom;
 import mindustry.gen.Building;
 import mindustry.gen.Unit;
 import mindustry.gen.Teamc;
@@ -74,8 +75,17 @@ public class NeoplasmFlyingAI extends FlyingAI {
                 destination = other.tileOn();
             }
 
-            // Keep FlyingAI targeting and firing, but sidestep remembered deaths.
-            if (destination == null || !deathMemory.avoidNearbyDanger(destination)) {
+            // When approaching buildings, use the shared strategic route if
+            // defenses make the direct approach substantially more dangerous.
+            boolean strategicallyRouted = destination != null
+                && !unit.within(destination, unit.type.range * 0.8f)
+                && deathMemory.applyStrategicTarget(
+                    destination, unit.type.range * 0.8f, PathfinderCustom.costNone
+                );
+
+            // Keep FlyingAI targeting and firing when no strategic detour is needed.
+            if (!strategicallyRouted
+                && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
                 if (unit.type.circleTarget) {
                     circleAttack(unit.type.circleTargetRadius);
                 } else {

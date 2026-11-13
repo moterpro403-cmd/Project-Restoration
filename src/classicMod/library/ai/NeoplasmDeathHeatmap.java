@@ -18,11 +18,12 @@ import mindustry.world.Tile;
  */
 public final class NeoplasmDeathHeatmap {
     private static final ObjectMap<Team, HeatGrid> grids = new ObjectMap<>();
+    private static final ObjectMap<Team, Integer> revisions = new ObjectMap<>();
 
     private static final int radius = 9;
-    private static final float deathHeat = 90f;
-    private static final float maxHeat = 100f;
-    private static final long halfLifeMillis = 60000L;
+    private static final float deathHeat = 55f;
+    private static final float maxHeat = 300f;
+    private static final long halfLifeMillis = 180000L;
 
     /** Cost added to flowfield weight per point of heat. */
     public static final float pathHeatWeight = 0.24f;
@@ -85,6 +86,7 @@ public final class NeoplasmDeathHeatmap {
 
         if (width != worldWidth || height != worldHeight) {
             grids.clear();
+            revisions.clear();
             worldWidth = width;
             worldHeight = height;
         }
@@ -107,6 +109,7 @@ public final class NeoplasmDeathHeatmap {
         HeatGrid heat = grid(team, true);
         if (heat == null) return;
 
+        revisions.put(team, revisions.get(team, 0) + 1);
         long now = Time.millis();
         for (int dy = -radius; dy <= radius; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -139,6 +142,28 @@ public final class NeoplasmDeathHeatmap {
         return readHeat(heat, index, Time.millis());
     }
 
+    /** Monotonic team-local version used to refresh cached strategic routes. */
+    public static int getRevision(Team team) {
+        return team == null ? 0 : revisions.get(team, 0);
+    }
+
+    /** Copies the current, time-decayed danger field into a reusable tile-sized array. */
+    public static void copyHeat(Team team, float[] output) {
+        if (output == null) return;
+        HeatGrid heat = grid(team, false);
+        if (heat == null) {
+            java.util.Arrays.fill(output, 0f);
+            return;
+        }
+
+        long now = Time.millis();
+        int limit = Math.min(output.length, heat.values.length);
+        for (int i = 0; i < limit; i++) {
+            output[i] = readHeat(heat, i, now);
+        }
+        if (limit < output.length) java.util.Arrays.fill(output, limit, output.length, 0f);
+    }
+
     private static float readHeat(HeatGrid heat, int index, long now) {
         float value = heat.values[index];
         if (value <= 0f) return 0f;
@@ -160,6 +185,7 @@ public final class NeoplasmDeathHeatmap {
     /** Clear all team heat when a new world is loaded or the game resets. */
     public static void clear() {
         grids.clear();
+        revisions.clear();
         worldWidth = -1;
         worldHeight = -1;
     }
