@@ -195,7 +195,7 @@ public class CausticHeart extends NeoplasmBlock {
         public void updateBeat() {
 
             if (Mathf.chance(0.25) && getClosestVent() != null){
-                if (!Vars.net.client() && canCreate(team, unitType) && NeoplasmBlock.trySpawn(team)) {
+                if (!Vars.net.client() && canCreate(team, unitType)) {
                     unit = unitType.create(team);
                     unit.set(this);
                     unit.rotation(90f);
