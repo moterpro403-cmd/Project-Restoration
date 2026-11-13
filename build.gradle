@@ -42,6 +42,13 @@ configurations.all {
     }
 }
 
+// Mindustry v160.7 libraries are published for Java 17. Resolve the API
+// against Java 17 while Jabel and --release 8 keep this mod's output
+// compatible with Android's D8 toolchain.
+configurations.compileClasspath.attributes {
+    attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
+}
+
 task jarAndroid {
     dependsOn "jar"
 
@@ -69,20 +76,20 @@ task jarAndroid {
         def libsDir = new File(layout.buildDirectory.get().asFile, "libs")
 
         def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")])
-            .collect { "--classpath \"\${it.path}\"" }
+            .collect { "--classpath \"${it.path}\"" }
             .join(" ")
 
-        def cmd = "\"$d8\" $dependencies --min-api 21 --output \"\${archiveName}Android.jar\" \"\${archiveName}Desktop.jar\""
+        def cmd = "\"$d8\" $dependencies --min-api 21 --output \"${archiveName}Android.jar\" \"${archiveName}Desktop.jar\""
         def proc = cmd.execute(null, libsDir)
         proc.waitForProcessOutput(System.out, System.err)
         if (proc.exitValue() != 0) {
-            throw new GradleException("d8 dexing failed with exit code \${proc.exitValue()}")
+            throw new GradleException("d8 dexing failed with exit code ${proc.exitValue()}")
         }
     }
 }
 
 jar {
-    archiveFileName = "\${base.archivesName.get()}Desktop.jar"
+    archiveFileName = "${base.archivesName.get()}Desktop.jar"
 
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
@@ -100,22 +107,22 @@ jar {
 task deploy(type: Jar) {
     dependsOn jarAndroid
     dependsOn jar
-    archiveFileName = "\${base.archivesName.get()}.jar"
+    archiveFileName = "${base.archivesName.get()}.jar"
 
     def archiveName = base.archivesName.get()
     def libsDir = new File(layout.buildDirectory.get().asFile, "libs")
 
     from {
         [
-            zipTree(new File(libsDir, "\${archiveName}Desktop.jar")),
-            zipTree(new File(libsDir, "\${archiveName}Android.jar"))
+            zipTree(new File(libsDir, "${archiveName}Desktop.jar")),
+            zipTree(new File(libsDir, "${archiveName}Android.jar"))
         ]
     }
 
     doLast {
         delete(
-            new File(libsDir, "\${archiveName}Desktop.jar"),
-            new File(libsDir, "\${archiveName}Android.jar")
+            new File(libsDir, "${archiveName}Desktop.jar"),
+            new File(libsDir, "${archiveName}Android.jar")
         )
     }
 }
