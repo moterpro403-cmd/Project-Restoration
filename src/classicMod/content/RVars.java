@@ -26,7 +26,10 @@ public class RVars extends Vars {
      **/
     public static Seq<Item> CordCanDrill = new Seq<>(
             new Item[]{
+                    // Items used by Neoplasm's automatic mob-spawner conversions.
                     Items.beryllium,
+                    Items.graphite,
+                    Items.oxide,
                     Items.tungsten,
             }
     );
