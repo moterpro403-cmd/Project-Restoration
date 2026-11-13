@@ -5,7 +5,6 @@ import arc.graphics.Color;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
-import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.*;
 import arc.util.io.*;
@@ -24,133 +23,6 @@ import mindustry.world.meta.Attribute;
 import static classicMod.content.RVars.CordCanDrill;
 
 public class NeoplasmBlock extends Block {
-
-    // One shared spread timer per team prevents every connected Cord from
-    // expanding independently. Bigger infections naturally spread more slowly.
-    private static final ObjectMap<Team, SpreadControl> spreadControls = new ObjectMap<>();
-
-    static {
-        // Do not carry growth cooldowns or cached counts into a newly loaded match.
-        Events.on(EventType.WorldLoadEvent.class, event -> spreadControls.clear());
-        Events.on(EventType.ResetEvent.class, event -> spreadControls.clear());
-    }
-
-    private static class SpreadControl {
-        // A shared token bucket lets several active growth fronts spread at once
-        // while keeping the total expansion rate bounded.
-        float spreadCredits = 1f;
-        float lastSpreadUpdate;
-        float nextSpawnAt;
-        float nextCountCheck;
-        float lastTime;
-        int structureCount;
-    }
-
-    private static SpreadControl controlFor(Team team) {
-        SpreadControl control = spreadControls.get(team);
-        if (control == null) {
-            control = new SpreadControl();
-            control.lastSpreadUpdate = Time.time;
-            spreadControls.put(team, control);
-        }
-
-        float now = Time.time;
-        // Also handle game-clock resets if the event order differs across modes.
-        if (now < control.lastTime) {
-            control.spreadCredits = 1f;
-            control.lastSpreadUpdate = now;
-            control.nextSpawnAt = 0f;
-            control.nextCountCheck = 0f;
-            control.structureCount = 0;
-        }
-        control.lastTime = now;
-
-        // Count only once per second; this is shared by all spread and spawn checks.
-        if (now >= control.nextCountCheck) {
-            int count = 0;
-            // TeamData maintains only this team's buildings, avoiding a global scan.
-            for (Building build : team.data().buildings) {
-                if (build instanceof NeoplasmBuilding) count++;
-            }
-            control.structureCount = count;
-            control.nextCountCheck = now + 60f;
-        }
-        return control;
-    }
-
-    private static float spreadRate(SpreadControl control) {
-        // Starts at 1.25 placements/second and rises with infection size,
-        // reaching a safe cap of 6 placements/second for large colonies.
-        return Mathf.clamp(1.25f + control.structureCount * 0.045f, 1.25f, 6f);
-    }
-
-    private static float spreadCapacity(SpreadControl control) {
-        // Larger colonies can briefly bank more growth, so blocked fronts
-        // can expand in a short burst once they find open ground.
-        return Mathf.clamp(1f + control.structureCount / 25f, 1f, 6f);
-    }
-
-    private static void refillSpreadCredits(SpreadControl control) {
-        float now = Time.time;
-        float elapsed = Math.max(0f, now - control.lastSpreadUpdate);
-        control.lastSpreadUpdate = now;
-        control.spreadCredits = Math.min(
-                spreadCapacity(control),
-                control.spreadCredits + elapsed * spreadRate(control) / 60f
-        );
-    }
-
-    /** Current banked spread credits for UI bars. */
-    public static float spreadCredits(Team team) {
-        if (team == null) return 0f;
-        SpreadControl control = controlFor(team);
-        refillSpreadCredits(control);
-        return control.spreadCredits;
-    }
-
-    /** Current spread-credit storage capacity for UI bars. */
-    public static float spreadCapacity(Team team) {
-        return team == null ? 1f : spreadCapacity(controlFor(team));
-    }
-
-    /** Current number of Neoplasm structures for UI and scaling. */
-    public static int structureCount(Team team) {
-        return team == null ? 0 : controlFor(team).structureCount;
-    }
-
-    protected static boolean canSpread(Team team) {
-        if (team == null || Vars.net.client()) return false;
-        SpreadControl control = controlFor(team);
-        refillSpreadCredits(control);
-        return control.spreadCredits >= 1f;
-    }
-
-    protected static void recordSpread(Team team) {
-        if (team == null || Vars.net.client()) return;
-        SpreadControl control = controlFor(team);
-        refillSpreadCredits(control);
-        if (control.spreadCredits >= 1f) control.spreadCredits -= 1f;
-    }
-
-    // Retained for compatibility with any older internal callers.
-    protected static boolean trySpread(Team team) {
-        if (!canSpread(team)) return false;
-        recordSpread(team);
-        return true;
-    }
-
-    protected static boolean trySpawn(Team team) {
-        if (team == null || Vars.net.client()) return false;
-        SpreadControl control = controlFor(team);
-
-        // One spawn for the whole infection every 3s initially, slowing to
-        // a maximum of one every 12s as the Neoplasm footprint grows.
-        float cooldown = Mathf.clamp(180f + control.structureCount * 0.75f, 180f, 720f);
-        if (Time.time < control.nextSpawnAt) return false;
-
-        control.nextSpawnAt = Time.time + cooldown;
-        return true;
-    }
 
     public boolean source = false;
     public Color beatColor = Color.valueOf("cd6240");
@@ -337,25 +209,16 @@ public class NeoplasmBlock extends Block {
             }
         }
 
-        public void growCord(Block block){
-            if (!isCord) {
-                if (!canSpread(team) || proximityTiles.isEmpty()) {
-                    grow = false;
-                    return;
-                }
-
-                // Start at a random edge, but inspect every edge before giving up.
-                // A blocked random pick must not waste the team's spread cooldown.
-                int start = Mathf.random(0, proximityTiles.size - 1);
-                for (int i = 0; i < proximityTiles.size; i++) {
-                    Tile candidate = proximityTiles.get((start + i) % proximityTiles.size);
-                    if (candidate == null || candidate.build != null || !passable(candidate, true, true)) continue;
-
-                    candidate.setBlock(block, team);
-                    if (candidate.build instanceof CausticCord.CordBuild cordBuild) {
-                        cordBuild.facingRot = cordBuild.relativeTo(this.tile);
-                        recordSpread(team);
-                        break;
+                public void growCord(Block block){
+            if (!isCord){
+                int rand = Mathf.random(0, proximityTiles.size);
+                Tile tile = proximityTiles.get(rand % proximityTiles.size);
+                if (tile != null) {
+                    if (tile.build == null && passable(tile, true)) {
+                        tile.setBlock(block, team);
+                        if (tile.build != null && tile.build instanceof CausticCord.CordBuild cordBuild) {
+                            cordBuild.facingRot = cordBuild.relativeTo(this.tile);
+                        }
                     }
                 }
             }
