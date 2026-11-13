@@ -84,6 +84,11 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         // Counts unsuccessful growth attempts; a blocked route should trigger
         // a new destination, not destroy the cord.
         public int growRestart = 0;
+
+        // Runs at a low frequency so a large cord network does not flood the
+        // mobile game with path searches.
+        private float networkRepairTimer = 0f;
+        private static final float networkRepairInterval = 180f;
         
 
         public Seq<Tile> Queue = new Seq<>();
@@ -261,6 +266,19 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         @Override
         public void update() {
             super.update();
+
+            // Reconnect isolated cord components to the nearest Heart-fed branch.
+            // Unconnected sections are kept alive by NeoplasmBlock while this runs.
+            if (grown && !NeoplasmCordNetwork.isConnected(team, tile)) {
+                networkRepairTimer += delta();
+                if (networkRepairTimer >= networkRepairInterval) {
+                    networkRepairTimer = 0f;
+                    NeoplasmCordNetwork.tryReconnect(tile, team, 24);
+                }
+            } else {
+                networkRepairTimer = 0f;
+            }
+
             if (Queue.size > 0) coverQueue(pipe);
 
             // Failed expansion is recoverable. Cycle through the same three

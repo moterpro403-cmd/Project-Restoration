@@ -377,6 +377,17 @@ public class NeoplasmBlock extends Block {
         @Override
         public void update() {
 
+            // Maintain a team-wide map of Neoplasm buildings connected to a Heart.
+            NeoplasmCordNetwork.update();
+
+            // A cord outside the Heart-connected component must not self-destruct
+            // while its repair logic is trying to reconnect it.
+            if (this instanceof CausticCord.CordBuild && grown
+                && !NeoplasmCordNetwork.isConnected(team, tile)) {
+                previousBeat = 0f;
+                deathTimer = 0f;
+            }
+
             takeBlood();
             timer += delta();
             previousBeat += delta();
