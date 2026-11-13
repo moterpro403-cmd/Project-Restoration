@@ -1,36 +1,39 @@
 package classicMod.library.ai;
 
-import arc.math.*;
-import arc.math.geom.*;
-import mindustry.Vars;
+import arc.math.geom.Geometry;
+import arc.math.geom.Point2;
 import mindustry.ai.Pathfinder;
+import mindustry.ai.types.HugAI;
 import mindustry.core.World;
 import mindustry.entities.Sized;
-import mindustry.gen.*;
+import mindustry.gen.Building;
+import mindustry.gen.Unit;
 import mindustry.world.Tile;
 
 import static mindustry.Vars.*;
 
-public class NeoplasmHugAI extends NeoplasmAIController {
+public class NeoplasmHugAI extends HugAI {
+    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
 
     @Override
-    public Teamc findMainTarget(float x, float y, float range, boolean air, boolean ground) {
-        Building enemyCore = unit.closestEnemyCore();
+    public void updateUnit() {
+        deathMemory.unit(unit);
+        deathMemory.updateNeoplasmTracking();
+        super.updateUnit();
+    }
 
-        // Attack nearby enemies first. When nothing is nearby, keep the enemy
-        // core as a long-range strategic destination for the pathfinder.
-        Teamc nearby = target(x, y, range, air, ground);
-        if (enemyCore != null && Mathf.within(x, y, enemyCore.x, enemyCore.y, range)) {
-            return enemyCore;
+    @Override
+    public void pathfind(int pathTarget) {
+        deathMemory.unit(unit);
+        if (!deathMemory.applyDodgePathfind(pathTarget)) {
+            super.pathfind(pathTarget);
         }
-        return nearby != null ? nearby : enemyCore;
     }
 
     @Override
     public void updateMovement() {
-        unloadPayloads();
-
         Building core = unit.closestEnemyCore();
+
         if (core != null && unit.within(core, unit.range() / 1.1f + core.block.size * tilesize / 2f)) {
             target = core;
             for (var mount : unit.mounts) {
@@ -44,37 +47,40 @@ public class NeoplasmHugAI extends NeoplasmAIController {
         if (state.rules.waves && unit.team == state.rules.defaultTeam) {
             Tile spawner = getClosestSpawner();
             if (spawner != null && unit.within(spawner, state.rules.dropZoneRadius + 120f)) move = false;
-            if (spawner == null && core == null) move = false;
         }
 
-        if (move && target != null && !invalid(target)) {
-            Tile destination = Vars.world.tile(target.tileX(), target.tileY());
+        // Preserve HugAI's original corner-aware raycast.
+        boolean clearShot = target != null && unit.within(target, unit.type.range)
+            && !World.raycast(unit.tileX(), unit.tileY(), target.tileX(), target.tileY(), (x, y) -> {
+                for (Point2 p : Geometry.d4c) {
+                    if (!unit.canPass(x + p.x, y + p.y)) return true;
+                }
+                return false;
+            });
 
-            // Reposition away from remembered danger while maintaining the target.
-            if (!avoidNearbyDanger(destination)) {
-                boolean blocked = World.raycast(unit.tileX(), unit.tileY(), target.tileX(), target.tileY(),
-                        (x, y) -> !unit.canPass(x, y));
+        if (clearShot) {
+            Tile destination = null;
+            if (target instanceof Building building) {
+                destination = building.tile;
+            } else if (target instanceof Unit other) {
+                destination = other.tileOn();
+            } else {
+                destination = world.tile(target.tileX(), target.tileY());
+            }
 
-                if (blocked) {
-                    // Use the flowfield's complete route around walls. A greedy
-                    // neighbor choice caused units to zig-zag against corners.
-                    pathfind(Pathfinder.fieldCore);
+            if (destination == null || !deathMemory.avoidNearbyDanger(destination)) {
+                if (unit.within(target, (unit.hitSize + (target instanceof Sized sized ? sized.hitSize() : 1f)) * 0.5f)) {
+                    unit.movePref(vec.set(target).sub(unit).rotate(90f).setLength(unit.speed()));
                 } else {
-                    float targetSize = target instanceof Sized sized ? sized.hitSize() : 8f;
-                    float contactDistance = (unit.hitSize + targetSize) * 0.5f + 2f;
-                    float stopDistance = unit.type.hasWeapons()
-                            ? Math.max(unit.type.range * 0.78f, contactDistance)
-                            : contactDistance;
-
-                    moveTo(target, stopDistance, 55f);
+                    unit.movePref(vec.set(target).sub(unit).limit(unit.speed()));
                 }
             }
-        } else if (move && core != null) {
+        } else if (move) {
             pathfind(Pathfinder.fieldCore);
         }
 
         if (unit.type.canBoost && unit.elevation > 0.001f && !unit.onSolid()) {
-            unit.elevation = Mathf.approachDelta(unit.elevation, 0f, unit.type.riseSpeed);
+            unit.elevation = arc.math.Mathf.approachDelta(unit.elevation, 0f, unit.type.descentSpeed);
         }
 
         faceTarget();

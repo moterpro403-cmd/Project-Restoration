@@ -29,8 +29,14 @@ public class NeoplasmAIController extends AIController {
     public boolean update;
     public boolean ignore;
 
-    @Override
-    public void updateUnit() {
+    /**
+     * Updates this controller's nearby Neoplasm group and records deaths.
+     * Kept separate from updateUnit() so vanilla-AI subclasses can use the
+     * same memory without replacing their original controller behavior.
+     */
+    public void updateNeoplasmTracking() {
+        if (unit == null) return;
+
         // Discover nearby units that use this same Neoplasm AI family.
         Unit neo = Units.closest(unit.team, unit.x, unit.y, u ->
             u != this.unit &&
@@ -63,7 +69,11 @@ public class NeoplasmAIController extends AIController {
         }
         neoplasmGroup.removeAll(deadToRemove);
         deadToRemove.clear();
+    }
 
+    @Override
+    public void updateUnit() {
+        updateNeoplasmTracking();
         super.updateUnit();
     }
 
@@ -258,6 +268,31 @@ public class NeoplasmAIController extends AIController {
         return candidates.sort(candidate ->
             candidate.dst(unit) - Math.min(dangerDistance(candidate) - 40f, 80f) * 0.5f
         ).first();
+    }
+
+    /**
+     * Applies a death-aware flowfield step when one is available.
+     * Returns false when the original controller should handle movement.
+     */
+    public boolean applyDodgePathfind(int pathTarget) {
+        if (unit == null) return false;
+
+        int costType = unit.type.flowfieldPathType;
+        Tile tile = unit.tileOn();
+        if (tile == null) return false;
+
+        Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
+        if (dodgeTarget != null
+            && dodgeTarget != tile
+            && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
+            unit.movePref(vec.trns(
+                unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()),
+                unit.speed()
+            ));
+            return true;
+        }
+
+        return false;
     }
 
     @Override
