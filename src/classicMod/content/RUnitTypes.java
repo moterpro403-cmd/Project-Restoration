@@ -547,7 +547,6 @@ public class RUnitTypes {
             payloadCapacity = Mathf.sqr(0.65f) * tilePayload;
             rotateMoveFirst = true;
             rotateSpeed = 4.5f;
-            fallDriftScl = 48f;
         }};
 
         mantis = new MantisRayType("skat"){{
