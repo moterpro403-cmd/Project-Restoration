@@ -111,6 +111,16 @@ public final class NeoplasmStrategicPathfinder {
 
     private static RouteField build(Team team, PathfinderCustom.Flowfield base,
                                     int[] explicitTargets, int targetHash, int revision, long now){
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            return buildInternal(team, base, explicitTargets, targetHash, revision, now);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_ROUTE, perfStart);
+        }
+    }
+
+    private static RouteField buildInternal(Team team, PathfinderCustom.Flowfield base,
+                                            int[] explicitTargets, int targetHash, int revision, long now){
         NeoplasmPerfMonitor.routeBuild();
         int width = base.width, height = base.height;
         int length = width * height;
@@ -196,6 +206,15 @@ public final class NeoplasmStrategicPathfinder {
     }
 
     private static void buildTurretRisk(Team team, float[] risk, int width, int height){
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            buildTurretRiskInternal(team, risk, width, height);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_TURRET, perfStart);
+        }
+    }
+
+    private static void buildTurretRiskInternal(Team team, float[] risk, int width, int height){
         NeoplasmPerfMonitor.turretScan();
         for(Tile turretTile : Vars.world.tiles){
             if(!(turretTile.build instanceof Turret.TurretBuild turretBuild)
@@ -342,6 +361,8 @@ public final class NeoplasmStrategicPathfinder {
         }
 
         NeoplasmPerfMonitor.trafficScan();
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
         float[] density = new float[width * height];
         Groups.unit.each(other -> {
             if(other == null || other.team != team || other.dead() || !other.isAdded()) return;
@@ -356,6 +377,9 @@ public final class NeoplasmStrategicPathfinder {
         TrafficField rebuilt = new TrafficField(density, width, height, now);
         trafficFields.put(team.id, rebuilt);
         return rebuilt;
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_TRAFFIC, perfStart);
+        }
     }
 
     private static final class TrafficField{

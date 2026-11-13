@@ -139,6 +139,16 @@ public class NeoplasmAIController extends AIController {
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
         NeoplasmPerfMonitor.pathRequest();
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            return getDodgeTargetInternal(pathTarget, tile);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_PATH, perfStart);
+        }
+    }
+
+    @Nullable
+    private Tile getDodgeTargetInternal(int pathTarget, Tile tile) {
         if (tile == null || unit == null || RVars.pathfinderCustom == null || !shouldUpdateRisk()) return null;
 
         // Prefer a whole-route danger-aware path before applying the local fallback.
@@ -223,6 +233,15 @@ public class NeoplasmAIController extends AIController {
 
     /** Soft local detour for direct-movement flying and Hug-style units. */
     protected boolean avoidNearbyDanger(Tile destination) {
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            return avoidNearbyDangerInternal(destination);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_STEERING, perfStart);
+        }
+    }
+
+    private boolean avoidNearbyDangerInternal(Tile destination) {
         if (destination == null || unit == null) return false;
         Tile current = unit.tileOn();
         if (current == null) return false;
@@ -306,6 +325,15 @@ public class NeoplasmAIController extends AIController {
      * should retain control.
      */
     public boolean applyStrategicTarget(Tile destination, float stopDistance, int costType) {
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            return applyStrategicTargetInternal(destination, stopDistance, costType);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_STEERING, perfStart);
+        }
+    }
+
+    private boolean applyStrategicTargetInternal(Tile destination, float stopDistance, int costType) {
         if (unit == null || destination == null || RVars.pathfinderCustom == null) return false;
         if (unit.within(destination.worldx(), destination.worldy(), stopDistance)) return false;
 

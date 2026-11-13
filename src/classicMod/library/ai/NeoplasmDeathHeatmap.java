@@ -153,14 +153,19 @@ public final class NeoplasmDeathHeatmap {
 
     /** Returns the current decayed danger at a tile for this team's units. */
     public static float getHeat(Team team, Tile tile) {
-        if (tile == null) return 0f;
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            if (tile == null) return 0f;
 
-        HeatGrid heat = grid(team, false);
-        if (heat == null) return 0f;
+            HeatGrid heat = grid(team, false);
+            if (heat == null) return 0f;
 
-        int index = tile.array();
-        if (index < 0 || index >= heat.values.length) return 0f;
-        return readHeat(heat, index, Time.millis());
+            int index = tile.array();
+            if (index < 0 || index >= heat.values.length) return 0f;
+            return readHeat(heat, index, Time.millis());
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_HEAT, perfStart);
+        }
     }
 
     /** Monotonic team-local version used to refresh cached strategic routes. */

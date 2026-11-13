@@ -61,6 +61,15 @@ public final class NeoplasmCordNetwork {
 
     /** Refresh the Heart-connected components at most once every two seconds. */
     public static void update(){
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            updateInternal();
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_CORD, perfStart);
+        }
+    }
+
+    private static void updateInternal(){
         if(Vars.world == null || Vars.net.client()) return;
 
         int width = Vars.world.width();
@@ -81,6 +90,7 @@ public final class NeoplasmCordNetwork {
 
         if(nextScan >= 0f && Time.time < nextScan) return;
         nextScan = Time.time + scanInterval;
+        long scanStart = NeoplasmPerfMonitor.startTimer();
         NeoplasmPerfMonitor.cordScan();
 
         // Reuse the per-team map instead of allocating a world-sized boolean
@@ -127,6 +137,7 @@ public final class NeoplasmCordNetwork {
                 }
             }
         }
+        NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_CORD_SCAN, scanStart);
 
     }
 
@@ -150,7 +161,12 @@ public final class NeoplasmCordNetwork {
 
         if(request.start == null || request.team == null || isConnected(request.team, request.start)) return;
         NeoplasmPerfMonitor.cordRepair();
-        tryReconnect(request.start, request.team, request.maxRadius);
+        long repairStart = NeoplasmPerfMonitor.startTimer();
+        try{
+            tryReconnect(request.start, request.team, request.maxRadius);
+        }finally{
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_REPAIR, repairStart);
+        }
     }
 
     private static final class RepairRequest{
