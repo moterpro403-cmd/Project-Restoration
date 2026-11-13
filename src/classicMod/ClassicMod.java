@@ -438,6 +438,7 @@ public class ClassicMod extends Mod {
     @Override
     public void loadContent() {
         registerConstructors();
+        NeoplasmDeathHeatmap.init();
 
         useNewSound = settings.getBool("content-use-new-sound");
         new RItems().load();
