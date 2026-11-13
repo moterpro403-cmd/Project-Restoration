@@ -1067,7 +1067,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
                         deathExplosionEffect = Fx.massiveExplosion;
                         shootOnDeath = true;
                         shake = 10f;
-                        bullet = new ExplosionBulletType(1500f, 65f) {{
+                        bullet = new ExplosionBulletType(300f, 45f) {{
                             hitColor = Pal.redLight;
                         }};
                     }});
