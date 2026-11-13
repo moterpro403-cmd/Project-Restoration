@@ -61,6 +61,9 @@ public final class NeoplasmCordNetwork {
             if(fresh[teamId] == null) fresh[teamId] = new boolean[width * height];
 
             queue.clear();
+            int rootIndex = heart.tile == null ? -1 : heart.tile.array();
+            if(rootIndex < 0 || rootIndex >= fresh[teamId].length || fresh[teamId][rootIndex]) continue;
+            fresh[teamId][rootIndex] = true;
             queue.add(heart);
             int cursor = 0;
 
@@ -69,16 +72,14 @@ public final class NeoplasmCordNetwork {
                 if(!(current instanceof NeoplasmBlock.NeoplasmBuilding)
                     || !current.isValid() || current.team != heart.team || current.tile == null) continue;
 
-                int index = current.tile.array();
-                if(index < 0 || index >= fresh[teamId].length || fresh[teamId][index]) continue;
-                fresh[teamId][index] = true;
-
                 for(Building neighbor : current.proximity){
                     if(neighbor instanceof NeoplasmBlock.NeoplasmBuilding
                         && neighbor.team == heart.team && neighbor.isValid() && neighbor.tile != null){
                         int neighborIndex = neighbor.tile.array();
                         if(neighborIndex >= 0 && neighborIndex < fresh[teamId].length
                             && !fresh[teamId][neighborIndex]){
+                            // Mark on enqueue, preventing duplicate frontier entries.
+                            fresh[teamId][neighborIndex] = true;
                             queue.add(neighbor);
                         }
                     }
@@ -183,7 +184,7 @@ public final class NeoplasmCordNetwork {
 
             step.setBlock(RBlocks.cord, team);
             if(step.build instanceof CausticCord.CordBuild cord){
-                cord.facingRot = step.relativeTo(previous);
+                cord.facingRot = previous.relativeTo(step);
             }
             return true;
         }
