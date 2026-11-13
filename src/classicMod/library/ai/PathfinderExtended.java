@@ -88,24 +88,27 @@ public class PathfinderExtended extends Pathfinder {
 
     public static void preloadAddons(){
         Events.on(EventType.WorldLoadEndEvent.class, (event) -> {
+            // Rebuild the indexes on each map load; keep this on WorldLoadEnd
+            // so the tile map and building data are fully available.
             SteamVents.clear();
             Ores.clear();
+
             for (Tile tile : Vars.world.tiles) {
-                if (tile.floor() == null) continue;
+                var item = tile.drop();
+                if (item == null) item = tile.wallDrop();
+                if (item != null) Ores.add(tile);
+
+                if (tile.floor() == null || tile.block() != Blocks.air) continue;
                 if (tile.floor().attributes.get(Attribute.steam) >= 1f) {
                     float steam = 0f;
                     for (int dy = -1; dy < 2; dy++) {
                         for (int dx = -1; dx < 2; dx++) {
                             Tile vents = Vars.world.tile(tile.x + dx, tile.y + dy);
-                            if (vents == null || vents.floor().attributes.get(Attribute.steam) <= 0f)
-                                continue;
+                            if (vents == null || vents.floor().attributes.get(Attribute.steam) <= 0f) continue;
                             steam += vents.floor().attributes.get(Attribute.steam);
                         }
                     }
                     if (steam >= 9f) SteamVents.add(tile);
-                }
-                if ((tile.floor() != null && tile.floor().itemDrop != null) || (tile.block() != null && tile.block().itemDrop != null)){
-                    Ores.add(tile);
                 }
             }
         });

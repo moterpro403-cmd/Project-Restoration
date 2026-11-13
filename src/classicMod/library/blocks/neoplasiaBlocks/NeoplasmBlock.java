@@ -13,7 +13,6 @@ import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.entities.Puddles;
 import mindustry.game.EventType;
-import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.type.Liquid;
 import mindustry.world.*;
@@ -110,23 +109,7 @@ public class NeoplasmBlock extends Block {
         }
 
         public boolean passable(Tile tile, boolean checkWall){
-            if (tile == null) return false;
-
-            Block block = tile.block();
-            if (block == null) return false;
-            if (tile.floor() != null && tile.floor().liquidDrop != null) return false;
-
-            return !(
-                            (block instanceof StaticWall && checkWall && block.itemDrop == null) ||
-                            block == pipe
-                    )
-                    && (
-                            block == Blocks.air
-                            || block instanceof SteamVent
-                            || block instanceof Prop
-                            || block instanceof NeoplasmBlock
-                    )
-            ;
+            return passable(tile, checkWall, false);
         }
 
         public boolean passable(Tile tile, boolean checkWall, boolean checkOre){
@@ -213,8 +196,8 @@ public class NeoplasmBlock extends Block {
                 for (int dy = 0; dy < 2; dy++) {
                     for (int dx = 0; dx < 2; dx++) {
                         Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
-                        if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
-                            ore += (tile.drop() != null) ? 1 : 0;
+                        if (tile != null && tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                            ore += (tile.drop() != null && CordCanDrill.contains(tile.drop())) ? 1 : 0;
                         }
                     }
                 }
@@ -225,12 +208,12 @@ public class NeoplasmBlock extends Block {
             }
         }
 
-                public void growCord(Block block){
+        public void growCord(Block block){
             if (!isCord){
                 int rand = Mathf.random(0, proximityTiles.size);
                 Tile tile = proximityTiles.get(rand % proximityTiles.size);
                 if (tile != null) {
-                    if (tile.build == null && passable(tile, true)) {
+                    if (tile.build == null && passable(tile, true, true)) {
                         tile.setBlock(block, team);
                         if (tile.build != null && tile.build instanceof CausticCord.CordBuild cordBuild) {
                             cordBuild.facingRot = cordBuild.relativeTo(this.tile);
@@ -374,17 +357,11 @@ public class NeoplasmBlock extends Block {
                 //liquids.remove(blood, drain); //TODO something
             }
 
-            if (!source){
-                liquidPressure -= delta() / 100;
-                for(int i = 0; i <proximity.size; ++i) {
-                    Building other = proximity.get((i) % proximity.size);
-                    if (other instanceof NeoplasmBuilding) {
-                        liquidPressure = other.block.liquidPressure;
-                    }
-                }
-            }
+
 
             if (grown) {
+
+
                 if (deathImminent()) deathTimer += delta();
                 else deathTimer = 0;
                 if (deathTimer >= 5) death();
@@ -392,7 +369,7 @@ public class NeoplasmBlock extends Block {
                 for(int i = 0; i <proximity.size; ++i) {
                     Building other = proximity.get((i) % proximity.size);
                     if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                        if (neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat && !neoplasmBuilding.deathImminent()) {
+                        if (neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat && !neoplasmBuilding.deathImminent() && isGrown() && neoplasmBuilding.isGrown()) {
                             ready = true;
                             grow = true;
                         }
@@ -416,13 +393,16 @@ public class NeoplasmBlock extends Block {
                         beatTimer = 0;
                     }
                 }
-                if (ready || alreadyBeat && !source) beatTimer += delta();
+                if (ready || alreadyBeat && !source) beatTimer += delta() / 1.5f;
 
                 if (beat > 1.05f) {
-                    beat = Mathf.lerpDelta(beat, 1f, 0.25f);
+                    beat -= delta() / 10;
                 } else {
                     if (beat > 1) {
                         updateAfterBeat();
+                        beat = 1;
+                    }
+                    if (beat < 1){
                         beat = 1;
                     }
                 }
