@@ -75,7 +75,9 @@ public class PathfinderExtended extends Pathfinder {
     public static class OresField extends Flowfield {
         //public Item OreTarget;
 
-        public OresField() {}
+        public OresField() {
+            refreshRate = 900; // original field refresh interval
+        }
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : Ores) {
@@ -85,20 +87,11 @@ public class PathfinderExtended extends Pathfinder {
     }
 
     public static void preloadAddons(){
-        Events.on(EventType.WorldLoadEvent.class, (event) -> {
-
+        Events.on(EventType.WorldLoadEndEvent.class, (event) -> {
+            SteamVents.clear();
+            Ores.clear();
             for (Tile tile : Vars.world.tiles) {
-                var item = tile.drop();
-                if (item == null) {
-                    item = tile.wallDrop(); // TODO wall ore func
-                }
-                if (item != null) {
-                    Ores.add(tile);
-                }
-            }
-            for (Tile tile : Vars.world.tiles) {
-
-                if (tile.floor() == null || tile.block() != Blocks.air) continue;
+                if (tile.floor() == null) continue;
                 if (tile.floor().attributes.get(Attribute.steam) >= 1f) {
                     float steam = 0f;
                     for (int dy = -1; dy < 2; dy++) {
@@ -109,9 +102,10 @@ public class PathfinderExtended extends Pathfinder {
                             steam += vents.floor().attributes.get(Attribute.steam);
                         }
                     }
-                    if (steam >= 9f) {
-                        SteamVents.add(tile);
-                    }
+                    if (steam >= 9f) SteamVents.add(tile);
+                }
+                if ((tile.floor() != null && tile.floor().itemDrop != null) || (tile.block() != null && tile.block().itemDrop != null)){
+                    Ores.add(tile);
                 }
             }
         });
