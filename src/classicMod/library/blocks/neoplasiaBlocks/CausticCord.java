@@ -453,7 +453,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 Tile queued = Queue.get(i);
                 if(queued == null || Vars.world == null
                     || Vars.world.tile(queued.x, queued.y) != queued){
-                    Queue.removeIndex(i);
+                    Queue.remove(i);
                     continue;
                 }
 
@@ -462,7 +462,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 }
                 // An existing cord already fulfils the request. A different
                 // building blocks it, so this request cannot be fulfilled.
-                Queue.removeIndex(i);
+                Queue.remove(i);
             }
         }
 
