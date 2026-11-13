@@ -44,6 +44,13 @@ public class CausticHeart extends NeoplasmBlock {
     public class HeartBuilding extends NeoplasmBuilding {
 
         public boolean inDanger;
+
+        /** Biomass pressure supplied to the connected cord network. */
+        public float outputPressure() {
+            if (!grown || !isValid() || !source) return 0f;
+            float healthScale = maxHealth <= 0f ? 1f : Mathf.clamp(health / maxHealth, 0.35f, 1f);
+            return Math.max(0.15f, Mathf.clamp(efficiency, 0.25f, 1f) * healthScale);
+        }
         public UnitType unitType = RUnitTypes.blob;
         public @Nullable Unit unit;
 
