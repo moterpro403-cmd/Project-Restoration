@@ -173,7 +173,7 @@ public final class NeoplasmStrategicPathfinder {
     private static void addTarget(int tileArray, PathfinderCustom.Flowfield base,
                                   float[] distance, PriorityQueue<Node> frontier){
         if(tileArray < 0 || tileArray >= Vars.world.width() * Vars.world.height()) return;
-        Tile tile = Vars.world.tiles.get(tileArray);
+        Tile tile = Vars.world.tile(tileArray % Vars.world.width(), tileArray / Vars.world.width());
         if(tile == null) return;
         int x = tile.x / base.resolution;
         int y = tile.y / base.resolution;
