@@ -14,6 +14,9 @@ import mindustry.world.Tile;
 
 public class NeoplasmAIController extends AIController {
     public boolean update;
+    /** Suppress heat-map recording only for intentional self-removal (for example, cord placement). */
+    public boolean ignoreDeathHeat;
+    /** Existing combat/AI state flag; not related to death heat recording. */
     public boolean ignore;
 
     /** Every Neoplasm controller records its own route history automatically. */

@@ -85,8 +85,12 @@ public final class NeoplasmDeathHeatmap {
     private static void recordDeath(Unit unit) {
         if (!isNeoplasm(unit)) return;
 
-        // Ignore units that intentionally remove themselves after placing cord.
-        if (unit.controller() instanceof NeoplasmAIController ai && ai.ignore) return;
+        // Only suppress intentional self-removal. The legacy 'ignore' flag is
+        // also used by combat AI (notably suicide bombers attacking buildings).
+        if (unit.controller() instanceof NeoplasmAIController ai && ai.ignoreDeathHeat) {
+            NeoplasmPerfMonitor.deathSuppressed();
+            return;
+        }
 
         Tile tile = unit.tileOn();
         if (tile == null && Vars.world != null) {
@@ -95,6 +99,7 @@ public final class NeoplasmDeathHeatmap {
         if (tile == null) return;
 
         addDeathHeat(unit.team, tile);
+        NeoplasmPerfMonitor.deathRecorded();
     }
 
     private static void ensureWorldSize() {
@@ -229,6 +234,7 @@ public final class NeoplasmDeathHeatmap {
         revisions.clear();
         worldWidth = -1;
         worldHeight = -1;
+        NeoplasmStrategicPathfinder.clear();
     }
 
     private static final class HeatGrid {

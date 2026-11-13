@@ -25,6 +25,9 @@ public final class NeoplasmStrategicPathfinder {
     // Full route maps are expensive on mobile. Rebuild at a fixed interval,
     // not once for every unit death recorded by the heat map.
     private static final long refreshMillis = 10000L;
+    // A changed death field can refresh sooner than the normal cache timeout,
+    // but throttle rebuilds so a burst of deaths cannot trigger one per event.
+    private static final long heatRevisionRefreshMillis = 1500L;
     private static final long trafficRefreshMillis = 1000L;
     private static final float congestionWeight = 5f;
     private static final float deathRiskWeight = 0.48f;
@@ -105,10 +108,14 @@ public final class NeoplasmStrategicPathfinder {
         int targetHash = targetHash(base, explicitTargets);
 
         RouteField cached = fields.get(key);
+        boolean heatChanged = cached != null && cached.heatRevision != revision;
+        boolean heatRefreshThrottled = heatChanged && cached != null
+            && now - cached.builtAt < heatRevisionRefreshMillis;
         if(cached != null && cached.base == base
             && cached.width == base.width && cached.height == base.height
             && cached.targetHash == targetHash
-            && now - cached.builtAt < refreshMillis){
+            && now - cached.builtAt < refreshMillis
+            && (!heatChanged || heatRefreshThrottled)){
             return cached;
         }
 

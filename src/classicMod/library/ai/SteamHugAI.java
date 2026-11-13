@@ -17,7 +17,7 @@ public class SteamHugAI extends NeoplasmAIController {
         if (closestVent != null) {
             pathfind(PathfinderExtended.fieldVent);
         } else {
-            ignore = true;
+            ignoreDeathHeat = true;
             unit.kill();
         }
 
@@ -25,7 +25,7 @@ public class SteamHugAI extends NeoplasmAIController {
         Tile tile = unit.tileOn();
         if (tile != null && tile.floor().attributes.get(Attribute.steam) >= 1f
             && !(tile.build instanceof CausticHeart.HeartBuilding)) {
-            ignore = true;
+            ignoreDeathHeat = true;
             tile.setBlock(RBlocks.cord, unit.team);
             unit.kill();
         }
