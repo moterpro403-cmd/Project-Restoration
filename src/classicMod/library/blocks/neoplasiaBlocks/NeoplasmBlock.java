@@ -184,7 +184,8 @@ public class NeoplasmBlock extends Block {
             for (int dy = (2 - size); dy < 2; dy++) {
                 for (int dx = (2 - size); dx < 2; dx++) {
                     Tile tile = Vars.world.tile(tileX + dx, tileY + dy);
-                    if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                    if (tile != null && tile.floor() != null
+                        && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
                         spaceAvaliable += 1;
                     }
                 }
@@ -215,7 +216,8 @@ public class NeoplasmBlock extends Block {
                 for (int dy = 0; dy < 2; dy++) {
                     for (int dx = 0; dx < 2; dx++) {
                         Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
-                        if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                        if (tile != null && tile.floor() != null
+                            && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
                             ore += (tile.drop() != null) ? 1 : 0;
                         }
                     }
@@ -229,8 +231,12 @@ public class NeoplasmBlock extends Block {
 
                 public void growCord(Block block){
             if (!isCord){
-                int rand = Mathf.random(0, proximityTiles.size);
-                Tile tile = proximityTiles.get(rand % proximityTiles.size);
+                if (proximityTiles.isEmpty()) {
+                    grow = false;
+                    return;
+                }
+                int rand = Mathf.random(proximityTiles.size - 1);
+                Tile tile = proximityTiles.get(rand);
                 if (tile != null) {
                     if (tile.build == null && passable(tile, true)) {
                         tile.setBlock(block, team);
@@ -430,7 +436,9 @@ public class NeoplasmBlock extends Block {
                 }
 
             } else {
-                if ((this.tile.floor().attributes.get(Attribute.steam) >= 1 || tile.drop() != null) && this instanceof CausticCord.CordBuild) {
+                if (this.tile.floor() != null
+                    && (this.tile.floor().attributes.get(Attribute.steam) >= 1 || tile.drop() != null)
+                    && this instanceof CausticCord.CordBuild) {
                     if (isCord && tile.drop() != null) coverOre(drill);
                     if (isCord && this.tile.floor().attributes.get(Attribute.steam) >= 1) coverVent(core, pipe);
                 }
