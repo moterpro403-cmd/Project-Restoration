@@ -27,7 +27,6 @@ import mindustry.graphics.Pal;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods.LoadedMod;
 import mindustry.type.*;
-import mindustry.type.unit.NeoplasmUnitType;
 import mindustry.ui.FileChooser;
 import mindustry.ui.Styles;
 import mindustry.ui.dialogs.*;
@@ -464,11 +463,6 @@ public class ClassicMod extends Mod {
                 if (type.controller == null) continue;
 
                 var originalController = type.controller;
-
-                // Keep Neoplasm controller factories untouched, as in the PC source.
-                // Their own NeoplasmAIController handles death-aware pathfinding.
-                if (type instanceof NeoplasmUnitType) continue;
-
                 type.controller = unit -> {
                     var controller = originalController.get(unit);
                     if (!unit.team.isAI()) return controller;
