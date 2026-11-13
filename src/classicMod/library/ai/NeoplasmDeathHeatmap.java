@@ -19,15 +19,15 @@ import mindustry.world.Tile;
 public final class NeoplasmDeathHeatmap {
     private static final ObjectMap<Team, HeatGrid> grids = new ObjectMap<>();
 
-    private static final int radius = 7;
+    private static final int radius = 9;
     private static final float deathHeat = 90f;
     private static final float maxHeat = 100f;
-    private static final long halfLifeMillis = 45000L;
+    private static final long halfLifeMillis = 60000L;
 
     /** Cost added to flowfield weight per point of heat. */
-    public static final float pathHeatWeight = 0.18f;
+    public static final float pathHeatWeight = 0.24f;
     /** Cost added to direct-movement distance per point of heat. */
-    public static final float directHeatWeight = 0.18f;
+    public static final float directHeatWeight = 0.24f;
 
     private static boolean initialized;
     private static int worldWidth = -1;

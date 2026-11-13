@@ -23,7 +23,7 @@ public class NeoplasmAIController extends AIController {
     }
 
     // Short per-unit history prevents repeatedly reversing between the same tiles.
-    private final int[] recentTiles = new int[16];
+    private final int[] recentTiles = new int[24];
     private int recentTileCursor;
     private int recentTileCount;
     private int lastRecordedTile = -1;
@@ -50,7 +50,7 @@ public class NeoplasmAIController extends AIController {
         int index = tile.array();
         for (int age = 0; age < recentTileCount; age++) {
             int position = (recentTileCursor - 1 - age + recentTiles.length) % recentTiles.length;
-            if (recentTiles[position] == index) return 20f - age * 0.75f;
+            if (recentTiles[position] == index) return 28f - age * 0.8f;
         }
         return 0f;
     }

@@ -272,7 +272,10 @@ public class NeoplasmBlock extends Block {
         }
 
         public boolean deathImminent(){
-            return previousBeat >= 600f;
+            // Cords can form very long chains. Give the pulse more time to propagate
+            // across the transport network before considering a cord abandoned.
+            float timeout = block instanceof CausticCord ? 3600f : 600f;
+            return previousBeat >= timeout;
         }
 
         public void death(){
@@ -400,9 +403,15 @@ public class NeoplasmBlock extends Block {
                 for(int i = 0; i <proximity.size; ++i) {
                     Building other = proximity.get((i) % proximity.size);
                     if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                        if (neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat && !neoplasmBuilding.deathImminent()) {
-                            ready = true;
-                            grow = true;
+                        if (neoplasmBuilding.beat >= 1.2f && !source && !neoplasmBuilding.deathImminent()) {
+                            // Hearing a healthy neighbor's pulse confirms this segment is
+                            // still connected. Refresh its life timer even during beat cooldown.
+                            previousBeat = 0f;
+                            deathTimer = 0f;
+                            if (!alreadyBeat) {
+                                ready = true;
+                                grow = true;
+                            }
                         }
                     }
                 }
@@ -427,7 +436,7 @@ public class NeoplasmBlock extends Block {
                 if (ready || alreadyBeat && !source) beatTimer += delta();
 
                 if (beat > 1.05f) {
-                    beat = Mathf.lerpDelta(beat, 1f, 0.25f);
+                    beat = Mathf.lerpDelta(beat, 1f, 0.1f);
                 } else {
                     if (beat > 1) {
                         updateAfterBeat();
