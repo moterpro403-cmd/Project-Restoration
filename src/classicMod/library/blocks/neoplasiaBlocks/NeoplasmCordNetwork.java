@@ -23,7 +23,7 @@ import java.util.HashSet;
  * the cost predictable on Android.
  */
 public final class NeoplasmCordNetwork {
-    private static final float scanInterval = 120f;
+    private static final float scanInterval = 300f;
     private static final int teamSlots = 256;
 
     private static boolean[][] connectedTiles = new boolean[teamSlots][];
@@ -32,10 +32,17 @@ public final class NeoplasmCordNetwork {
     private static int worldHeight = -1;
     private static float nextScan = -1f;
     private static float nextRepair = -1f;
+    private static float lastManagerTick = Float.NEGATIVE_INFINITY;
     private static final float repairInterval = 12f;
     private static final int maxPendingRepairs = 512;
     private static final ArrayDeque<RepairRequest> pendingRepairs = new ArrayDeque<>();
     private static final HashSet<Long> repairKeys = new HashSet<>();
+    private static final Seq<Building> scanQueue = new Seq<>();
+    private static final int maxRepairDiameter = 65;
+    private static final int maxRepairCells = maxRepairDiameter * maxRepairDiameter;
+    private static final int[] repairParent = new int[maxRepairCells];
+    private static final int[] repairQueue = new int[maxRepairCells];
+    private static final int[] repairPath = new int[maxRepairCells];
 
     private NeoplasmCordNetwork(){
     }
@@ -53,13 +60,22 @@ public final class NeoplasmCordNetwork {
             worldHeight = height;
         }
 
+        // NeoplasmBlock.update() is called for every Neoplasm building. Run
+        // global network work only once for this simulation tick.
+        if(lastManagerTick == Time.time) return;
+        lastManagerTick = Time.time;
+
         processRepairs();
 
         if(nextScan >= 0f && Time.time < nextScan) return;
         nextScan = Time.time + scanInterval;
 
-        boolean[][] fresh = new boolean[teamSlots][];
-        Seq<Building> queue = new Seq<>();
+        // Reuse the per-team map instead of allocating a world-sized boolean
+        // array for every Heart on every scan.
+        for(boolean[] teamTiles : connectedTiles){
+            if(teamTiles != null) java.util.Arrays.fill(teamTiles, false);
+        }
+        Seq<Building> queue = scanQueue;
 
         // Each live Heart is a root. Its friendly adjacent Neoplasm buildings
         // are traversed through Mindustry's existing proximity links.
@@ -68,12 +84,14 @@ public final class NeoplasmCordNetwork {
             if(!heart.isValid() || heart.team == null || heart.team.id < 0 || heart.team.id >= teamSlots) continue;
 
             int teamId = heart.team.id;
-            if(fresh[teamId] == null) fresh[teamId] = new boolean[width * height];
+            if(connectedTiles[teamId] == null || connectedTiles[teamId].length != width * height){
+                connectedTiles[teamId] = new boolean[width * height];
+            }
 
             queue.clear();
             int rootIndex = heart.tile == null ? -1 : heart.tile.array();
-            if(rootIndex < 0 || rootIndex >= fresh[teamId].length || fresh[teamId][rootIndex]) continue;
-            fresh[teamId][rootIndex] = true;
+            if(rootIndex < 0 || rootIndex >= connectedTiles[teamId].length || connectedTiles[teamId][rootIndex]) continue;
+            connectedTiles[teamId][rootIndex] = true;
             queue.add(heart);
             int cursor = 0;
 
@@ -86,10 +104,10 @@ public final class NeoplasmCordNetwork {
                     if(neighbor instanceof NeoplasmBlock.NeoplasmBuilding
                         && neighbor.team == heart.team && neighbor.isValid() && neighbor.tile != null){
                         int neighborIndex = neighbor.tile.array();
-                        if(neighborIndex >= 0 && neighborIndex < fresh[teamId].length
-                            && !fresh[teamId][neighborIndex]){
+                        if(neighborIndex >= 0 && neighborIndex < connectedTiles[teamId].length
+                            && !connectedTiles[teamId][neighborIndex]){
                             // Mark on enqueue, preventing duplicate frontier entries.
-                            fresh[teamId][neighborIndex] = true;
+                            connectedTiles[teamId][neighborIndex] = true;
                             queue.add(neighbor);
                         }
                     }
@@ -97,7 +115,6 @@ public final class NeoplasmCordNetwork {
             }
         }
 
-        connectedTiles = fresh;
     }
 
     /** Queue a repair request; actual path searches are globally throttled. */
@@ -156,9 +173,10 @@ public final class NeoplasmCordNetwork {
         int radius = Math.max(4, Math.min(maxRadius, 32));
         int diameter = radius * 2 + 1;
         int cellCount = diameter * diameter;
-        int[] parent = new int[cellCount];
-        int[] queue = new int[cellCount];
-        java.util.Arrays.fill(parent, -1);
+        int[] parent = repairParent;
+        int[] queue = repairQueue;
+        int[] reversePath = repairPath;
+        java.util.Arrays.fill(parent, 0, cellCount, -1);
 
         int origin = radius * diameter + radius;
         parent[origin] = origin;
@@ -199,7 +217,6 @@ public final class NeoplasmCordNetwork {
         if(goal < 0) return false;
 
         // Reconstruct from the connected target back to the starting cord.
-        int[] reversePath = new int[tail];
         int pathSize = 0;
         int cursor = goal;
         while(cursor != origin && cursor >= 0 && pathSize < reversePath.length){
@@ -260,6 +277,7 @@ public final class NeoplasmCordNetwork {
         worldHeight = -1;
         nextScan = -1f;
         nextRepair = -1f;
+        lastManagerTick = Float.NEGATIVE_INFINITY;
         pendingRepairs.clear();
         repairKeys.clear();
     }

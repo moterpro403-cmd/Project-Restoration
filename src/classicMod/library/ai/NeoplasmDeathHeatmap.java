@@ -1,6 +1,7 @@
 package classicMod.library.ai;
 
 import arc.Events;
+import arc.struct.IntSeq;
 import arc.struct.ObjectMap;
 import arc.util.Time;
 import classicMod.content.RUnitTypes;
@@ -24,6 +25,25 @@ public final class NeoplasmDeathHeatmap {
     private static final float deathHeat = 55f;
     private static final float maxHeat = 300f;
     private static final long halfLifeMillis = 180000L;
+    private static final int decayStepMillis = 250;
+    private static final int maxDecaySteps = (int)(halfLifeMillis * 12L / decayStepMillis);
+    private static final float[] decayFactors = new float[maxDecaySteps + 1];
+    private static final float[][] deathFalloff = new float[radius * 2 + 1][radius * 2 + 1];
+
+    static {
+        for(int i = 0; i <= maxDecaySteps; i++){
+            decayFactors[i] = (float)Math.pow(0.5d, (double)i * decayStepMillis / halfLifeMillis);
+        }
+        for(int dy = -radius; dy <= radius; dy++){
+            for(int dx = -radius; dx <= radius; dx++){
+                float distance = (float)Math.sqrt(dx * dx + dy * dy);
+                if(distance <= radius){
+                    float falloff = 1f - distance / (radius + 1f);
+                    deathFalloff[dy + radius][dx + radius] = falloff * falloff;
+                }
+            }
+        }
+    }
 
     /** Cost added to flowfield weight per point of heat. */
     public static final float pathHeatWeight = 0.24f;
@@ -116,15 +136,16 @@ public final class NeoplasmDeathHeatmap {
                 Tile tile = Vars.world.tile(center.x + dx, center.y + dy);
                 if (tile == null) continue;
 
-                float distance = (float)Math.sqrt(dx * dx + dy * dy);
-                if (distance > radius) continue;
+                float falloff = deathFalloff[dy + radius][dx + radius];
+                if(falloff <= 0f) continue;
 
-                float falloff = 1f - distance / (radius + 1f);
-                float addition = deathHeat * falloff * falloff;
                 int index = tile.array();
                 float previous = readHeat(heat, index, now);
-
-                heat.values[index] = Math.min(maxHeat, previous + addition);
+                if(!heat.tracked[index]){
+                    heat.tracked[index] = true;
+                    heat.active.add(index);
+                }
+                heat.values[index] = Math.min(maxHeat, previous + deathHeat * falloff);
                 heat.updated[index] = now;
             }
         }
@@ -156,12 +177,22 @@ public final class NeoplasmDeathHeatmap {
             return;
         }
 
+        java.util.Arrays.fill(output, 0f);
         long now = Time.millis();
         int limit = Math.min(output.length, heat.values.length);
-        for (int i = 0; i < limit; i++) {
-            output[i] = readHeat(heat, i, now);
+        // Only visit cells that have received death heat. Most maps have a
+        // very sparse danger field, so avoid a pow() call for every world tile.
+        for(int i = heat.active.size - 1; i >= 0; i--){
+            int index = heat.active.get(i);
+            if(index < 0 || index >= limit) continue;
+            float value = readHeat(heat, index, now);
+            if(value <= 0f){
+                heat.tracked[index] = false;
+                heat.active.removeIndex(i);
+            }else{
+                output[index] = value;
+            }
         }
-        if (limit < output.length) java.util.Arrays.fill(output, limit, output.length, 0f);
     }
 
     private static float readHeat(HeatGrid heat, int index, long now) {
@@ -172,10 +203,15 @@ public final class NeoplasmDeathHeatmap {
         if (last <= 0L) return value;
 
         long elapsed = Math.max(0L, now - last);
-        if (elapsed == 0L) return value;
+        if(elapsed < decayStepMillis / 2) return value;
 
-        value *= (float)Math.pow(0.5d, (double)elapsed / halfLifeMillis);
-        if (value < 0.25f) value = 0f;
+        int step = (int)((elapsed + decayStepMillis / 2) / decayStepMillis);
+        if(step >= maxDecaySteps){
+            value = 0f;
+        }else if(step > 0){
+            value *= decayFactors[step];
+        }
+        if(value < 0.25f) value = 0f;
 
         heat.values[index] = value;
         heat.updated[index] = now;
@@ -193,11 +229,14 @@ public final class NeoplasmDeathHeatmap {
     private static final class HeatGrid {
         final float[] values;
         final long[] updated;
+        final boolean[] tracked;
+        final IntSeq active = new IntSeq();
 
         HeatGrid(int width, int height) {
             int size = width * height;
             values = new float[size];
             updated = new long[size];
+            tracked = new boolean[size];
         }
     }
 }

@@ -382,7 +382,8 @@ public class NeoplasmBlock extends Block {
         @Override
         public void update() {
 
-            // Maintain a team-wide map of Neoplasm buildings connected to a Heart.
+            // Keep global cord-repair bookkeeping on its once-per-tick guard.
+            // This call is cheap for subsequent Neoplasm buildings in the same tick.
             NeoplasmCordNetwork.update();
 
             // Cords are maintained by the network manager, not by fragile visual

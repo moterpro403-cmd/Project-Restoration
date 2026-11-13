@@ -4,6 +4,7 @@ import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
 import arc.struct.Seq;
 import arc.util.Nullable;
+import arc.util.Time;
 import classicMod.content.RVars;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
@@ -27,6 +28,16 @@ public class NeoplasmAIController extends AIController {
     private int recentTileCursor;
     private int recentTileCount;
     private int lastRecordedTile = -1;
+
+    // Local danger checks are identical for several consecutive movement ticks.
+    // Cache the decision briefly so flyers/Hug units do not score 8 tiles every frame.
+    private int avoidOrigin = -1, avoidDestination = -1, avoidTarget = -1;
+    private float avoidUntil = -1f;
+    private boolean avoidResult;
+
+    private int strategicOrigin = -1, strategicDestination = -1, strategicTarget = -1;
+    private float strategicUntil = -1f;
+    private boolean strategicResult;
 
     /** Initialize the shared death listener and record this unit's recent route. */
     public void updateNeoplasmTracking() {
@@ -187,6 +198,24 @@ public class NeoplasmAIController extends AIController {
         Tile current = unit.tileOn();
         if (current == null) return false;
 
+        int originIndex = current.array();
+        int destinationIndex = destination.array();
+        if(Time.time < avoidUntil && avoidOrigin == originIndex
+            && avoidDestination == destinationIndex){
+            if(!avoidResult) return false;
+            Tile cached = Vars.world.tile(avoidTarget % Vars.world.width(), avoidTarget / Vars.world.width());
+            if(cached != null && unit.canPass(cached.x, cached.y)){
+                unit.movePref(vec.set(cached.worldx(), cached.worldy()).sub(unit).limit(unit.speed()));
+                return true;
+            }
+        }
+
+        avoidOrigin = originIndex;
+        avoidDestination = destinationIndex;
+        avoidUntil = Time.time + 6f;
+        avoidResult = false;
+        avoidTarget = -1;
+
         Tile best = null;
         float bestScore = Float.MAX_VALUE;
         Tile normalNext = null;
@@ -227,6 +256,8 @@ public class NeoplasmAIController extends AIController {
         if (currentHeat >= 25f && dangerDistance(best) >= currentHeat
             && revisitPenalty(best) >= 20f) return false;
 
+        avoidResult = true;
+        avoidTarget = best.array();
         unit.movePref(vec.set(best.worldx(), best.worldy()).sub(unit).limit(unit.speed()));
         return true;
     }
@@ -251,11 +282,31 @@ public class NeoplasmAIController extends AIController {
         Tile current = unit.tileOn();
         if (current == null) return false;
 
+        int originIndex = current.array();
+        int destinationIndex = destination.array();
+        if(Time.time < strategicUntil && strategicOrigin == originIndex
+            && strategicDestination == destinationIndex){
+            if(!strategicResult) return false;
+            Tile cached = Vars.world.tile(strategicTarget % Vars.world.width(), strategicTarget / Vars.world.width());
+            if(cached != null && cached != current){
+                unit.movePref(vec.trns(unit.angleTo(cached.worldx(), cached.worldy()), unit.speed()));
+                return true;
+            }
+        }
+
+        strategicOrigin = originIndex;
+        strategicDestination = destinationIndex;
+        strategicUntil = Time.time + 6f;
+        strategicResult = false;
+        strategicTarget = -1;
+
         Tile next = NeoplasmStrategicPathfinder.nextStepTo(
             current, destination, unit.team, costType, unit.id
         );
         if (next == null || next == current) return false;
 
+        strategicResult = true;
+        strategicTarget = next.array();
         unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
         return true;
     }

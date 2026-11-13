@@ -25,7 +25,7 @@ public final class NeoplasmStrategicPathfinder {
     // Full route maps are expensive on mobile. Rebuild at a fixed interval,
     // not once for every unit death recorded by the heat map.
     private static final long refreshMillis = 10000L;
-    private static final long trafficRefreshMillis = 500L;
+    private static final long trafficRefreshMillis = 1000L;
     private static final float congestionWeight = 5f;
     private static final float deathRiskWeight = 0.48f;
     private static final float turretRiskWeight = 1f;
@@ -348,18 +348,6 @@ public final class NeoplasmStrategicPathfinder {
             int index = tile.array();
             if(index < 0 || index >= density.length) return;
             density[index] += 1f;
-
-            // Spread a smaller amount to adjacent tiles to create spacing
-            // before units physically pile onto a one-tile bottleneck.
-            for(Point2 offset : Geometry.d8){
-                Tile nearby = Vars.world.tile(tile.x + offset.x, tile.y + offset.y);
-                if(nearby != null){
-                    int nearbyIndex = nearby.array();
-                    if(nearbyIndex >= 0 && nearbyIndex < density.length){
-                        density[nearbyIndex] += 0.18f;
-                    }
-                }
-            }
         });
 
         TrafficField rebuilt = new TrafficField(density, width, height, now);
