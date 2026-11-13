@@ -24,6 +24,9 @@ import static classicMod.content.RVars.CordCanDrill;
 
 public class NeoplasmBlock extends Block {
 
+    // Reuse the tint to avoid allocating a Color for every visible cord each frame.
+    private static final Color beatDrawColor = new Color(1f, 1f, 1f, 1f);
+
     public boolean source = false;
     public Color beatColor = Color.valueOf("cd6240");
 
@@ -80,7 +83,7 @@ public class NeoplasmBlock extends Block {
             float xs = (xscl > 0) ? xscl + ((beat - 1f) * offsetSclBeat) : xscl - ((beat - 1f) * offsetSclBeat);
             float ys = (yscl > 0) ? yscl + ((beat - 1f) * offsetSclBeat) : yscl - ((beat - 1f) * offsetSclBeat);
             Draw.scl(xs, ys);
-            Draw.color(new Color(1.0F, 1.0F, 1.0F, 1.0F).lerp(beatColor, (beat - 1)));
+            Draw.color(beatDrawColor.set(1f, 1f, 1f, 1f).lerp(beatColor, beat - 1f));
         }
 
         public NeoplasmBuilding getNeoplasm(Building building){

@@ -39,6 +39,33 @@ public class NeoplasmAIController extends AIController {
     private float strategicUntil = -1f;
     private boolean strategicResult;
 
+    // Stagger expensive danger/path checks by distance. Native AI movement and
+    // weapon updates still run normally between custom decisions.
+    private int riskInterval = 5;
+    private int lastRiskDecisionTick = Integer.MIN_VALUE;
+    private float nextRiskIntervalRefresh = -1f;
+
+    private boolean shouldUpdateRisk(){
+        if(unit == null) return false;
+        int tick = (int)Time.time;
+        if(lastRiskDecisionTick == tick) return false;
+        if(Time.time >= nextRiskIntervalRefresh){
+            var core = unit.closestEnemyCore();
+            if(core == null){
+                riskInterval = 5;
+            }else{
+                float dx = unit.x - core.x, dy = unit.y - core.y;
+                float distance2 = dx * dx + dy * dy;
+                riskInterval = distance2 > 2560f * 2560f ? 10
+                    : distance2 > 1024f * 1024f ? 5 : 2;
+            }
+            nextRiskIntervalRefresh = Time.time + 60f;
+        }
+        if(Math.floorMod(tick + unit.id, riskInterval) != 0) return false;
+        lastRiskDecisionTick = tick;
+        return true;
+    }
+
     /** Initialize the shared death listener and record this unit's recent route. */
     public void updateNeoplasmTracking() {
         NeoplasmDeathHeatmap.init();
@@ -110,7 +137,7 @@ public class NeoplasmAIController extends AIController {
      */
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
-        if (tile == null || unit == null || RVars.pathfinderCustom == null) return null;
+        if (tile == null || unit == null || RVars.pathfinderCustom == null || !shouldUpdateRisk()) return null;
 
         // Prefer a whole-route danger-aware path before applying the local fallback.
         Tile strategic = NeoplasmStrategicPathfinder.nextStep(
@@ -210,6 +237,7 @@ public class NeoplasmAIController extends AIController {
             }
         }
 
+        if(!shouldUpdateRisk()) return false;
         avoidOrigin = originIndex;
         avoidDestination = destinationIndex;
         avoidUntil = Time.time + 6f;
@@ -294,6 +322,7 @@ public class NeoplasmAIController extends AIController {
             }
         }
 
+        if(!shouldUpdateRisk()) return false;
         strategicOrigin = originIndex;
         strategicDestination = destinationIndex;
         strategicUntil = Time.time + 6f;
