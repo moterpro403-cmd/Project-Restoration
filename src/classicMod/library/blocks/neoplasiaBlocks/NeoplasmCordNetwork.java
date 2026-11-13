@@ -1,8 +1,11 @@
 package classicMod.library.blocks.neoplasiaBlocks;
 
+import arc.Events;
 import arc.struct.Seq;
 import arc.util.Time;
 import classicMod.content.RBlocks;
+import classicMod.library.ai.NeoplasmPerfMonitor;
+import mindustry.game.EventType.Trigger;
 import mindustry.Vars;
 import mindustry.game.Team;
 import mindustry.gen.Building;
@@ -45,6 +48,15 @@ public final class NeoplasmCordNetwork {
     private static final int[] repairPath = new int[maxRepairCells];
 
     private NeoplasmCordNetwork(){
+    }
+
+    private static boolean initialized;
+
+    /** Register global maintenance once; do not invoke it from every building update. */
+    public static void init(){
+        if(initialized) return;
+        initialized = true;
+        Events.run(Trigger.update, NeoplasmCordNetwork::update);
     }
 
     /** Refresh the Heart-connected components at most once every two seconds. */
