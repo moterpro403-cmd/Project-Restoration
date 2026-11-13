@@ -202,7 +202,12 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 grow = false;
                 return;
             }
-            nextCordGrowthTime = Time.time + cordGrowthInterval;
+            // Healthy, well-fed arteries can grow modestly faster; keep the existing
+            // independent cooldown and never impose a team-wide sprout budget.
+            float pressureScale = connected
+                ? Mathf.clamp(vascularPressure, 0.75f, 1.35f)
+                : 1f;
+            nextCordGrowthTime = Time.time + cordGrowthInterval / pressureScale;
 
             Tile origin = this.tile;
             if(origin == null || origin == Vars.emptyTile || Vars.world == null){
@@ -250,16 +255,18 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     Tile nTile = null;
                     Tile closestVent = task == PathfinderExtended.fieldVent ? getClosestVent() : null;
                     Tile closestOre = task == PathfinderExtended.fieldOres ? getClosestOre() : null;
+                    // Prefer the intended resource/front while gently avoiding
+                    // enemy crossfire, remembered death zones, and narrow kill corridors.
                     if(closestVent != null){
-                        nearTiles.sort(tile1 -> tile1.dst(closestVent));
+                        nearTiles.sort(tile1 -> cordRouteScore(tile1, closestVent));
                         nTile = nearTiles.first();
                     }
                     if(closestOre != null){
-                        nearTiles.sort(tile1 -> tile1.dst(closestOre));
+                        nearTiles.sort(tile1 -> cordRouteScore(tile1, closestOre));
                         nTile = nearTiles.first();
                     }
                     if(task == Pathfinder.fieldCore){
-                        nearTiles.sort(tile1 -> tile1.dst(next));
+                        nearTiles.sort(tile1 -> cordRouteScore(tile1, next));
                         nTile = nearTiles.first();
                     }
                     if(nTile != null){
@@ -278,6 +285,14 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 }
             }
             super.growCord(block);
+        }
+
+        private float cordRouteScore(Tile candidate, Tile objective) {
+            float score = candidate.dst(objective);
+            score += NeoplasmDeathHeatmap.getHeat(team, candidate) * 0.45f;
+            score += NeoplasmStrategicPathfinder.getTileThreat(team, candidate) * 0.08f;
+            score += NeoplasmStrategicPathfinder.getTileChokepoint(team, candidate) * 4.5f;
+            return score;
         }
 
         public Tile pathfind(int pathTarget) {
