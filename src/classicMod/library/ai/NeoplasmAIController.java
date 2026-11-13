@@ -34,36 +34,20 @@ public class NeoplasmAIController extends AIController {
     private int avoidOrigin = -1, avoidDestination = -1, avoidTarget = -1;
     private float avoidUntil = -1f;
     private boolean avoidResult;
+    private int avoidHeatRevision = -1;
 
     private int strategicOrigin = -1, strategicDestination = -1, strategicTarget = -1;
     private float strategicUntil = -1f;
     private boolean strategicResult;
+    private int strategicHeatRevision = -1;
 
-    // Stagger expensive danger/path checks by distance while allowing all layers
-    // within the same scheduled decision tick to cooperate.
-    private int riskInterval = 5;
-    private int activeDecisionTick = Integer.MIN_VALUE;
-    private float nextRiskIntervalRefresh = -1f;
-
-    private boolean shouldUpdateRisk() {
+    /**
+     * Route fields already cache expensive full-map Dijkstra/threat work. Re-evaluate
+     * the next step every movement tick so units never fall back to vanilla routing
+     * just because a staggered risk interval has not elapsed.
+     */
+    private boolean canApplyRiskRouting() {
         if (unit == null || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return false;
-        int tick = (int)Time.time;
-        if (activeDecisionTick == tick) return true;
-
-        if (Time.time >= nextRiskIntervalRefresh) {
-            var core = unit.closestEnemyCore();
-            if (core == null) {
-                riskInterval = 5;
-            } else {
-                float dx = unit.x - core.x, dy = unit.y - core.y;
-                float distance2 = dx * dx + dy * dy;
-                riskInterval = distance2 > 2560f * 2560f ? 10
-                    : distance2 > 1024f * 1024f ? 5 : 2;
-            }
-            nextRiskIntervalRefresh = Time.time + 60f;
-        }
-        if (Math.floorMod(tick + unit.id, riskInterval) != 0) return false;
-        activeDecisionTick = tick;
         NeoplasmPerfMonitor.riskDecision();
         return true;
     }
@@ -174,7 +158,7 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     private Tile getDodgeTargetInternal(int pathTarget, Tile tile) {
-        if (tile == null || unit == null || RVars.pathfinderCustom == null || !shouldUpdateRisk()) return null;
+        if (tile == null || unit == null || RVars.pathfinderCustom == null || !canApplyRiskRouting()) return null;
 
         // Always consult the cached map-wide strategic Dijkstra field first so units
         // commit to wide, open flanking routes early instead of entering fortified chokepoints.
@@ -265,8 +249,9 @@ public class NeoplasmAIController extends AIController {
 
         int originIndex = current.array();
         int destinationIndex = destination.array();
+        int heatRevision = NeoplasmDeathHeatmap.getRevision(unit.team);
         if (Time.time < avoidUntil && avoidOrigin == originIndex
-                && avoidDestination == destinationIndex) {
+                && avoidDestination == destinationIndex && avoidHeatRevision == heatRevision) {
             if (!avoidResult) return false;
             Tile cached = Vars.world.tile(avoidTarget);
             if (cached != null && cached != current && unit.canPass(cached.x, cached.y)) {
@@ -275,9 +260,10 @@ public class NeoplasmAIController extends AIController {
             }
         }
 
-        if (!shouldUpdateRisk()) return false;
+        if (!canApplyRiskRouting()) return false;
         avoidOrigin = originIndex;
         avoidDestination = destinationIndex;
+        avoidHeatRevision = heatRevision;
         avoidUntil = Time.time + 6f;
         avoidResult = false;
         avoidTarget = -1;
@@ -370,8 +356,9 @@ public class NeoplasmAIController extends AIController {
 
         int originIndex = current.array();
         int destinationIndex = destination.array();
+        int heatRevision = NeoplasmDeathHeatmap.getRevision(unit.team);
         if (Time.time < strategicUntil && strategicOrigin == originIndex
-                && strategicDestination == destinationIndex) {
+                && strategicDestination == destinationIndex && strategicHeatRevision == heatRevision) {
             if (!strategicResult) return false;
             Tile cached = Vars.world.tile(strategicTarget);
             if (cached != null && cached != current && unit.canPass(cached.x, cached.y)) {
@@ -380,9 +367,10 @@ public class NeoplasmAIController extends AIController {
             }
         }
 
-        if (!shouldUpdateRisk()) return false;
+        if (!canApplyRiskRouting()) return false;
         strategicOrigin = originIndex;
         strategicDestination = destinationIndex;
+        strategicHeatRevision = heatRevision;
         strategicUntil = Time.time + 6f;
         strategicResult = false;
         strategicTarget = -1;

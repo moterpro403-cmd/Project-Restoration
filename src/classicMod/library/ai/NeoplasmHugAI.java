@@ -80,7 +80,14 @@ public class NeoplasmHugAI extends HugAI {
                 destination = world.tile(target.tileX(), target.tileY());
             }
 
-            if (destination == null || !deathMemory.avoidNearbyDanger(destination)) {
+            float strategicStop = Math.max(unit.hitSize * 2f, unit.range() * 0.8f);
+            boolean strategicallyRouted = destination != null
+                    && deathMemory.applyStrategicTarget(
+                            destination, strategicStop, unit.type.flowfieldPathType
+                    );
+
+            if (!strategicallyRouted
+                    && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
                 if (unit.within(target, (unit.hitSize + (target instanceof Sized sized ? sized.hitSize() : 1f)) * 0.5f)) {
                     unit.movePref(vec.set(target).sub(unit).rotate(90f).setLength(unit.speed()));
                 } else {
