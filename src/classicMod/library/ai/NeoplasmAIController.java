@@ -19,7 +19,6 @@ public class NeoplasmAIController extends AIController {
     /** Existing combat/AI state flag; not related to death heat recording. */
     public boolean ignore;
 
-    /** Every Neoplasm controller records its own route history automatically. */
     @Override
     public void updateUnit() {
         updateNeoplasmTracking();
@@ -32,8 +31,6 @@ public class NeoplasmAIController extends AIController {
     private int recentTileCount;
     private int lastRecordedTile = -1;
 
-    // Local danger checks are identical for several consecutive movement ticks.
-    // Cache the decision briefly so flyers/Hug units do not score 8 tiles every frame.
     private int avoidOrigin = -1, avoidDestination = -1, avoidTarget = -1;
     private float avoidUntil = -1f;
     private boolean avoidResult;
@@ -42,21 +39,22 @@ public class NeoplasmAIController extends AIController {
     private float strategicUntil = -1f;
     private boolean strategicResult;
 
-    // Stagger expensive danger/path checks by distance. Native AI movement and
-    // weapon updates still run normally between custom decisions.
+    // Stagger expensive danger/path checks by distance while allowing all layers
+    // within the same scheduled decision tick to cooperate.
     private int riskInterval = 5;
-    private int lastRiskDecisionTick = Integer.MIN_VALUE;
+    private int activeDecisionTick = Integer.MIN_VALUE;
     private float nextRiskIntervalRefresh = -1f;
 
-    private boolean shouldUpdateRisk(){
-        if(unit == null) return false;
+    private boolean shouldUpdateRisk() {
+        if (unit == null || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return false;
         int tick = (int)Time.time;
-        if(lastRiskDecisionTick == tick) return false;
-        if(Time.time >= nextRiskIntervalRefresh){
+        if (activeDecisionTick == tick) return true;
+
+        if (Time.time >= nextRiskIntervalRefresh) {
             var core = unit.closestEnemyCore();
-            if(core == null){
+            if (core == null) {
                 riskInterval = 5;
-            }else{
+            } else {
                 float dx = unit.x - core.x, dy = unit.y - core.y;
                 float distance2 = dx * dx + dy * dy;
                 riskInterval = distance2 > 2560f * 2560f ? 10
@@ -64,8 +62,8 @@ public class NeoplasmAIController extends AIController {
             }
             nextRiskIntervalRefresh = Time.time + 60f;
         }
-        if(Math.floorMod(tick + unit.id, riskInterval) != 0) return false;
-        lastRiskDecisionTick = tick;
+        if (Math.floorMod(tick + unit.id, riskInterval) != 0) return false;
+        activeDecisionTick = tick;
         NeoplasmPerfMonitor.riskDecision();
         return true;
     }
@@ -73,7 +71,7 @@ public class NeoplasmAIController extends AIController {
     /** Initialize the shared death listener and record this unit's recent route. */
     public void updateNeoplasmTracking() {
         NeoplasmDeathHeatmap.init();
-        if (unit == null) return;
+        if (unit == null || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return;
 
         Tile current = unit.tileOn();
         if (current == null) return;
@@ -86,7 +84,7 @@ public class NeoplasmAIController extends AIController {
         lastRecordedTile = index;
     }
 
-    /** Penalty for revisiting a recently crossed tile; newest visits cost most. */
+    /** Strong revisit penalty discourages oscillation without forbidding legitimate retreats. */
     private float revisitPenalty(Tile tile) {
         if (tile == null) return 0f;
         int index = tile.array();
@@ -99,32 +97,57 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     public Tile getClosestVent() {
-        Seq<Tile> available = PathfinderExtended.SteamVents.copy()
-            .removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding);
-        Tile vent = Geometry.findClosest(unit.x, unit.y, available);
-        return vent != null && !(vent.build instanceof CausticHeart.HeartBuilding) ? vent : null;
+        Tile closest = null;
+        float bestDst2 = Float.MAX_VALUE;
+        for (Tile tile : PathfinderExtended.SteamVents) {
+            if (tile == null || tile.build instanceof CausticHeart.HeartBuilding) continue;
+            float dst2 = unit.dst2(tile.worldx(), tile.worldy());
+            if (dst2 < bestDst2) {
+                bestDst2 = dst2;
+                closest = tile;
+            }
+        }
+        return closest;
     }
 
     @Nullable
     public Tile getClosestVent(boolean avoidDangerous) {
-        return getClosestVent();
+        if (!avoidDangerous) return getClosestVent();
+
+        Tile closest = null;
+        float bestScore = Float.MAX_VALUE;
+        for (Tile tile : PathfinderExtended.SteamVents) {
+            if (tile == null || tile.build instanceof CausticHeart.HeartBuilding) continue;
+            float score = unit.dst(tile.worldx(), tile.worldy())
+                    + dangerDistance(tile) * NeoplasmDeathHeatmap.directHeatWeight;
+            if (score < bestScore) {
+                bestScore = score;
+                closest = tile;
+            }
+        }
+        return closest;
     }
 
+    @Nullable
     public Tile getClosestTarget(int range) {
         int r = (range % 2 == 1) ? range + 1 : range;
         int mid = r / 2;
         Seq<Tile> available = new Seq<>();
-        for (int y = -mid; y < r; y++) {
-            for (int x = -mid; x < r; x++) {
+        for (int y = -mid; y <= mid; y++) {
+            for (int x = -mid; x <= mid; x++) {
                 Tile tile = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
                 if (tile != null && tile.block() == Blocks.air
-                    && tile.floor() != null && !tile.floor().isLiquid) {
+                        && tile.floor() != null && !tile.floor().isLiquid) {
                     available.add(tile);
                 }
             }
         }
         if (available.isEmpty()) return null;
-        available.sort(tile -> tile.dst(target));
+        if (target != null) {
+            available.sort(tile -> tile.dst2(target));
+        } else {
+            available.sort(tile -> tile.dst2(unit));
+        }
         return available.first();
     }
 
@@ -134,18 +157,17 @@ public class NeoplasmAIController extends AIController {
     }
 
     /**
-     * Choose a nearby flowfield step using destination cost + shared heat +
-     * recent-visit penalty. Unlike strict downhill-only routing, this permits
-     * a short uphill step to get around a hot patch. Recent tiles are penalized
-     * so the unit does not bounce back and forth between the same two tiles.
+     * Choose the next step along the team-wide strategic route (which accounts for
+     * turret crossfire, fortified chokepoint narrowness, enemy walls, and death heat),
+     * falling back to local heat-aware flowfield stepping if needed.
      */
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
         NeoplasmPerfMonitor.pathRequest();
         long perfStart = NeoplasmPerfMonitor.startTimer();
-        try{
+        try {
             return getDodgeTargetInternal(pathTarget, tile);
-        }finally{
+        } finally {
             NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_PATH, perfStart);
         }
     }
@@ -154,9 +176,10 @@ public class NeoplasmAIController extends AIController {
     private Tile getDodgeTargetInternal(int pathTarget, Tile tile) {
         if (tile == null || unit == null || RVars.pathfinderCustom == null || !shouldUpdateRisk()) return null;
 
-        // Prefer a whole-route danger-aware path before applying the local fallback.
+        // Always consult the cached map-wide strategic Dijkstra field first so units
+        // commit to wide, open flanking routes early instead of entering fortified chokepoints.
         Tile strategic = NeoplasmStrategicPathfinder.nextStep(
-            tile, unit.team, unit.type.flowfieldPathType, pathTarget, unit.id
+                tile, unit.team, unit.type.flowfieldPathType, pathTarget, unit.id
         );
         if (strategic != null && strategic != tile) return strategic;
 
@@ -185,26 +208,23 @@ public class NeoplasmAIController extends AIController {
                 Tile horizontal = Vars.world.tile(tile.x + offset.x, tile.y);
                 Tile vertical = Vars.world.tile(tile.x, tile.y + offset.y);
                 if (horizontal == null || vertical == null
-                    || !field.passable(horizontal.array()) || !field.passable(vertical.array())) continue;
+                        || !field.passable(horizontal.array()) || !field.passable(vertical.array())) continue;
             }
 
             int progress = weights[index];
             if (progress < 0) continue;
 
-            // Allow a bounded temporary increase in path cost for a real detour.
-            if (progress > currentWeight + 72 && currentHeat < 25f) continue;
+            if (progress > currentWeight + 96 && currentHeat < 25f) continue;
 
             float heat = dangerDistance(candidate);
             float score = progress
-                + heat * NeoplasmDeathHeatmap.pathHeatWeight
-                + revisitPenalty(candidate);
+                    + heat * NeoplasmDeathHeatmap.pathHeatWeight
+                    + revisitPenalty(candidate);
 
             if (progress < normalWeight) {
                 normalWeight = progress;
                 normalNext = candidate;
-                normalScore = progress
-                    + heat * NeoplasmDeathHeatmap.pathHeatWeight
-                    + revisitPenalty(candidate);
+                normalScore = score;
             }
 
             if (score < bestScore) {
@@ -215,21 +235,15 @@ public class NeoplasmAIController extends AIController {
 
         if (best == null || normalNext == null) return null;
 
-        // Do nothing when neither the current tile nor the normal next tile is hot.
         float normalHeat = dangerDistance(normalNext);
         if (currentHeat < 2f && normalHeat < 2f) return null;
 
-        // Compare the safer option against both staying on course and escaping
-        // the current hot tile. Strong heat can justify a bounded uphill detour.
-        float currentScore = currentWeight
-            + currentHeat * NeoplasmDeathHeatmap.pathHeatWeight;
+        float currentScore = currentWeight + currentHeat * NeoplasmDeathHeatmap.pathHeatWeight;
         float baseline = Math.min(normalScore, currentScore);
         if (bestScore + 0.5f < baseline) return best;
 
-        // When already deep inside a hot zone, take the least-cost valid escape
-        // step even if it temporarily moves away from the destination.
         if (currentHeat >= 25f && dangerDistance(best) < currentHeat
-            && revisitPenalty(best) < 20f) return best;
+                && revisitPenalty(best) < 20f) return best;
 
         return null;
     }
@@ -237,31 +251,31 @@ public class NeoplasmAIController extends AIController {
     /** Soft local detour for direct-movement flying and Hug-style units. */
     protected boolean avoidNearbyDanger(Tile destination) {
         long perfStart = NeoplasmPerfMonitor.startTimer();
-        try{
+        try {
             return avoidNearbyDangerInternal(destination);
-        }finally{
+        } finally {
             NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_STEERING, perfStart);
         }
     }
 
     private boolean avoidNearbyDangerInternal(Tile destination) {
-        if (destination == null || unit == null) return false;
+        if (destination == null || unit == null || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return false;
         Tile current = unit.tileOn();
         if (current == null) return false;
 
         int originIndex = current.array();
         int destinationIndex = destination.array();
-        if(Time.time < avoidUntil && avoidOrigin == originIndex
-            && avoidDestination == destinationIndex){
-            if(!avoidResult) return false;
-            Tile cached = Vars.world.tile(avoidTarget % Vars.world.width(), avoidTarget / Vars.world.width());
-            if(cached != null && unit.canPass(cached.x, cached.y)){
+        if (Time.time < avoidUntil && avoidOrigin == originIndex
+                && avoidDestination == destinationIndex) {
+            if (!avoidResult) return false;
+            Tile cached = Vars.world.tile(avoidTarget);
+            if (cached != null && cached != current && unit.canPass(cached.x, cached.y)) {
                 unit.movePref(vec.set(cached.worldx(), cached.worldy()).sub(unit).limit(unit.speed()));
                 return true;
             }
         }
 
-        if(!shouldUpdateRisk()) return false;
+        if (!shouldUpdateRisk()) return false;
         avoidOrigin = originIndex;
         avoidDestination = destinationIndex;
         avoidUntil = Time.time + 6f;
@@ -272,24 +286,27 @@ public class NeoplasmAIController extends AIController {
         float bestScore = Float.MAX_VALUE;
         Tile normalNext = null;
         float normalScore = Float.MAX_VALUE;
+        float normalDst = Float.MAX_VALUE;
 
         for (Point2 offset : Geometry.d8) {
             Tile candidate = Vars.world.tile(current.x + offset.x, current.y + offset.y);
             if (candidate == null || !unit.canPass(candidate.x, candidate.y)) continue;
             if (offset.x != 0 && offset.y != 0
-                && (!unit.canPass(current.x + offset.x, current.y)
-                || !unit.canPass(current.x, current.y + offset.y))) continue;
+                    && (!unit.canPass(current.x + offset.x, current.y)
+                    || !unit.canPass(current.x, current.y + offset.y))) continue;
 
+            float dst = candidate.dst(destination);
             float heat = dangerDistance(candidate);
-            float score = candidate.dst(destination)
-                + heat * NeoplasmDeathHeatmap.directHeatWeight
-                + revisitPenalty(candidate);
+            float score = dst
+                    + heat * NeoplasmDeathHeatmap.directHeatWeight
+                    + revisitPenalty(candidate);
 
             if (score < bestScore) {
                 bestScore = score;
                 best = candidate;
             }
-            if (candidate.dst(destination) < (normalNext == null ? Float.MAX_VALUE : normalNext.dst(destination))) {
+            if (dst < normalDst) {
+                normalDst = dst;
                 normalNext = candidate;
                 normalScore = score;
             }
@@ -301,12 +318,12 @@ public class NeoplasmAIController extends AIController {
         if (currentHeat < 2f && normalHeat < 2f) return false;
 
         float baseline = Math.min(normalScore,
-            current.dst(destination) + currentHeat * NeoplasmDeathHeatmap.directHeatWeight);
+                current.dst(destination) + currentHeat * NeoplasmDeathHeatmap.directHeatWeight);
         if (bestScore + 0.5f >= baseline && currentHeat < 25f) return false;
 
         if (best == normalNext && currentHeat < 25f) return false;
         if (currentHeat >= 25f && dangerDistance(best) >= currentHeat
-            && revisitPenalty(best) >= 20f) return false;
+                && revisitPenalty(best) >= 20f) return false;
 
         avoidResult = true;
         avoidTarget = best.array();
@@ -316,28 +333,36 @@ public class NeoplasmAIController extends AIController {
 
     public void routeAir() {
         if (target == null) return;
+        if (NeoplasmDeathHeatmap.isSuicideBomber(unit)) {
+            vec.set(target.getX() - unit.x, target.getY() - unit.y);
+            if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
+            return;
+        }
         Tile destination = target.tileOn();
+        if (destination != null && applyStrategicTarget(destination, unit.range() * 0.8f, PathfinderCustom.costNone)) return;
         if (destination != null && avoidNearbyDanger(destination)) return;
         vec.set(target.getX() - unit.x, target.getY() - unit.y);
         if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
     }
 
     /**
-     * Uses a cached team-wide strategic field to approach a specific building
-     * by the safest available route. Returns false when the normal movement AI
-     * should retain control.
+     * Uses a cached team-wide strategic Dijkstra field to approach a specific target
+     * via the safest, most open available route—willingly taking longer detours
+     * around fortified chokepoints. Returns false when normal movement AI should
+     * retain control.
      */
     public boolean applyStrategicTarget(Tile destination, float stopDistance, int costType) {
         long perfStart = NeoplasmPerfMonitor.startTimer();
-        try{
+        try {
             return applyStrategicTargetInternal(destination, stopDistance, costType);
-        }finally{
+        } finally {
             NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_STEERING, perfStart);
         }
     }
 
     private boolean applyStrategicTargetInternal(Tile destination, float stopDistance, int costType) {
-        if (unit == null || destination == null || RVars.pathfinderCustom == null) return false;
+        if (unit == null || destination == null || RVars.pathfinderCustom == null
+                || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return false;
         if (unit.within(destination.worldx(), destination.worldy(), stopDistance)) return false;
 
         Tile current = unit.tileOn();
@@ -345,17 +370,17 @@ public class NeoplasmAIController extends AIController {
 
         int originIndex = current.array();
         int destinationIndex = destination.array();
-        if(Time.time < strategicUntil && strategicOrigin == originIndex
-            && strategicDestination == destinationIndex){
-            if(!strategicResult) return false;
-            Tile cached = Vars.world.tile(strategicTarget % Vars.world.width(), strategicTarget / Vars.world.width());
-            if(cached != null && cached != current){
+        if (Time.time < strategicUntil && strategicOrigin == originIndex
+                && strategicDestination == destinationIndex) {
+            if (!strategicResult) return false;
+            Tile cached = Vars.world.tile(strategicTarget);
+            if (cached != null && cached != current && unit.canPass(cached.x, cached.y)) {
                 unit.movePref(vec.trns(unit.angleTo(cached.worldx(), cached.worldy()), unit.speed()));
                 return true;
             }
         }
 
-        if(!shouldUpdateRisk()) return false;
+        if (!shouldUpdateRisk()) return false;
         strategicOrigin = originIndex;
         strategicDestination = destinationIndex;
         strategicUntil = Time.time + 6f;
@@ -363,9 +388,9 @@ public class NeoplasmAIController extends AIController {
         strategicTarget = -1;
 
         Tile next = NeoplasmStrategicPathfinder.nextStepTo(
-            current, destination, unit.team, costType, unit.id
+                current, destination, unit.team, costType, unit.id, stopDistance
         );
-        if (next == null || next == current) return false;
+        if (next == null || next == current || !unit.canPass(next.x, next.y)) return false;
 
         strategicResult = true;
         strategicTarget = next.array();
@@ -374,14 +399,12 @@ public class NeoplasmAIController extends AIController {
     }
 
     public boolean applyDodgePathfind(int pathTarget) {
-        if (unit == null) return false;
-        int costType = unit.type.flowfieldPathType;
+        if (unit == null || NeoplasmDeathHeatmap.isSuicideBomber(unit)) return false;
         Tile tile = unit.tileOn();
         if (tile == null) return false;
 
         Tile next = getDodgeTarget(pathTarget, tile);
-        if (next == null || next == tile
-            || (costType == 2 && (next.floor() == null || !next.floor().isLiquid))) return false;
+        if (next == null || next == tile || !unit.canPass(next.x, next.y)) return false;
 
         unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
         return true;
@@ -393,17 +416,17 @@ public class NeoplasmAIController extends AIController {
         Tile tile = unit.tileOn();
         if (tile == null) return;
 
-        Tile next = getDodgeTarget(pathTarget, tile);
-        if (next != null && next != tile
-            && (costType != 2 || (next.floor() != null && next.floor().isLiquid))) {
-            unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
-            return;
+        if (!NeoplasmDeathHeatmap.isSuicideBomber(unit)) {
+            Tile next = getDodgeTarget(pathTarget, tile);
+            if (next != null && next != tile && unit.canPass(next.x, next.y)) {
+                unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
+                return;
+            }
         }
 
         Tile targetTile = Vars.pathfinder.getTargetTile(tile,
-            Vars.pathfinder.getField(unit.team, costType, pathTarget));
-        if (targetTile != null && targetTile != tile
-            && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
+                Vars.pathfinder.getField(unit.team, costType, pathTarget));
+        if (targetTile != null && targetTile != tile && unit.canPass(targetTile.x, targetTile.y)) {
             unit.movePref(vec.trns(unit.angleTo(targetTile.worldx(), targetTile.worldy()), unit.speed()));
         }
     }

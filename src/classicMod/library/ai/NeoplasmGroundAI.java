@@ -4,7 +4,8 @@ import mindustry.ai.types.GroundAI;
 
 /**
  * GroundAI remains the real superclass, preserving its native stuck handling,
- * targeting, and movement. Only its pathfind step is intercepted for evasion.
+ * targeting, and movement. Only its pathfind step is intercepted for strategic
+ * chokepoint avoidance and death-heatmap routing.
  */
 public class NeoplasmGroundAI extends GroundAI {
     private final NeoplasmAIController deathMemory = new NeoplasmAIController();

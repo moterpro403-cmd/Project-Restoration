@@ -3,21 +3,23 @@ package classicMod.library.ai;
 import arc.math.Mathf;
 import arc.math.Rand;
 import mindustry.ai.types.FlyingAI;
-import classicMod.library.ai.PathfinderCustom;
 import mindustry.gen.Building;
-import mindustry.gen.Unit;
 import mindustry.gen.Teamc;
+import mindustry.gen.Unit;
+import mindustry.world.Tile;
 import mindustry.world.meta.BlockFlag;
 
 import static mindustry.Vars.*;
 import static mindustry.world.meta.BlockFlag.*;
-import mindustry.world.Tile;
 
 /**
- * Original FlyingAI behavior with Neoplasm death-memory avoidance layered on top.
+ * FlyingAI with map-wide Neoplasm strategic routing and chokepoint avoidance.
+ * Suicide bombers are automatically excluded so they charge straight into targets.
  */
 public class NeoplasmFlyingAI extends FlyingAI {
     private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    private static final Rand rand = new Rand();
+    private static final BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
 
     public boolean isIgnoringDeathHeat() {
         return deathMemory.ignoreDeathHeat;
@@ -26,8 +28,6 @@ public class NeoplasmFlyingAI extends FlyingAI {
     public void setIgnoreDeathHeat(boolean ignore) {
         deathMemory.ignoreDeathHeat = ignore;
     }
-    final static Rand rand = new Rand();
-    final static BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
 
     @Override
     public void updateUnit() {
@@ -38,8 +38,9 @@ public class NeoplasmFlyingAI extends FlyingAI {
 
     @Override
     public Teamc findTarget(float x, float y, float range, boolean air, boolean ground) {
-        Teamc local = target(x, y, range, air, ground);
+        var local = target(x, y, range, air, ground);
         if (local != null) return local;
+
         return findMainTarget(x, y, range, air, ground);
     }
 
@@ -56,14 +57,9 @@ public class NeoplasmFlyingAI extends FlyingAI {
                 Teamc result = targetFlagActive(x, y, randomTargets[rand.random(randomTargets.length - 1)], true);
                 if (result != null) return result;
             }
-            Teamc result = target(x, y, range, air, ground);
-            if (result != null) return result;
         } else {
             for (var flag : unit.type.targetFlags) {
-                if (flag == null) {
-                    Teamc result = target(x, y, range, air, ground);
-                    if (result != null) return result;
-                } else if (ground) {
+                if (flag != null && ground) {
                     Teamc result = targetFlagActive(x, y, flag, true);
                     if (result != null) return result;
                 }
@@ -77,6 +73,13 @@ public class NeoplasmFlyingAI extends FlyingAI {
         unloadPayloads();
 
         if (target != null && unit.hasWeapons()) {
+            // Suicide bombers dive directly onto targets without detouring around defenses.
+            if (NeoplasmDeathHeatmap.isSuicideBomber(unit)) {
+                moveTo(target, 0f);
+                if (unit.type.faceTarget) unit.lookAt(target);
+                return;
+            }
+
             Tile destination = null;
             if (target instanceof Building building) {
                 destination = building.tile;
@@ -84,25 +87,28 @@ public class NeoplasmFlyingAI extends FlyingAI {
                 destination = other.tileOn();
             }
 
-            // When approaching buildings, use the shared strategic route if
-            // defenses make the direct approach substantially more dangerous.
-            boolean strategicallyRouted = destination != null
-                && !unit.within(destination, unit.type.range * 0.8f)
-                && deathMemory.applyStrategicTarget(
-                    destination, unit.type.range * 0.8f, PathfinderCustom.costNone
-                );
+            float engageRange = unit.range() * 0.82f;
 
-            // Keep FlyingAI targeting and firing when no strategic detour is needed.
+            // Use the map-wide strategic Dijkstra route so flyers proactively pick
+            // open flanking paths around fortified chokepoints and turret lines.
+            boolean strategicallyRouted = destination != null
+                    && !unit.within(destination, engageRange)
+                    && deathMemory.applyStrategicTarget(
+                            destination, engageRange, PathfinderCustom.costNone
+                    );
+
             if (!strategicallyRouted
-                && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
+                    && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
                 if (unit.type.circleTarget) {
                     circleAttack(unit.type.circleTargetRadius);
                 } else {
-                    moveTo(target, unit.type.range * 0.8f);
+                    moveTo(target, engageRange);
                 }
             }
 
-            unit.lookAt(target);
+            if (unit.type.faceTarget) {
+                unit.lookAt(target);
+            }
         }
 
         if (target == null && state.rules.waves && unit.team == state.rules.defaultTeam) {

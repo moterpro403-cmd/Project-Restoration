@@ -6,50 +6,55 @@ import arc.struct.ObjectMap;
 import arc.util.Time;
 import classicMod.content.RUnitTypes;
 import mindustry.Vars;
+import mindustry.ai.types.SuicideAI;
+import mindustry.content.UnitTypes;
 import mindustry.game.EventType;
 import mindustry.game.Team;
+import mindustry.gen.TimedKillc;
 import mindustry.gen.Unit;
 import mindustry.world.Tile;
 
 /**
  * Team-wide memory of Neoplasm unit deaths.
  *
- * Each death adds a soft danger gradient around its tile. All Neoplasm AI
- * controllers on that team read the same field, and old danger fades over time.
+ * Each non-suicide death adds a danger gradient around its tile so subsequent
+ * ground, naval, and flying units learn where fortified chokepoints and
+ * killzones are located and route around them via safer, open paths.
  */
 public final class NeoplasmDeathHeatmap {
     private static final ObjectMap<Team, HeatGrid> grids = new ObjectMap<>();
     private static final ObjectMap<Team, Integer> revisions = new ObjectMap<>();
 
-    private static final int radius = 9;
-    private static final float deathHeat = 55f;
-    private static final float maxHeat = 300f;
-    /** Three-minute half-life measured in simulation ticks (60 ticks/sec). */
-    private static final float halfLifeTicks = 180f * 60f;
-    private static final float decayStepTicks = 15f;
+    private static final int radius = 12;
+    private static final float deathHeat = 85f;
+    private static final float maxHeat = 450f;
+    /** 4 minutes in simulation ticks (60 ticks/sec). */
+    private static final float halfLifeTicks = 240f * 60f;
+    private static final float decayStepTicks = 15f; // 0.25s in ticks
     private static final int maxDecaySteps = (int)(halfLifeTicks * 12f / decayStepTicks);
     private static final float[] decayFactors = new float[maxDecaySteps + 1];
     private static final float[][] deathFalloff = new float[radius * 2 + 1][radius * 2 + 1];
 
     static {
-        for(int i = 0; i <= maxDecaySteps; i++){
+        for (int i = 0; i <= maxDecaySteps; i++) {
             decayFactors[i] = (float)Math.pow(0.5d, (double)i * decayStepTicks / halfLifeTicks);
         }
-        for(int dy = -radius; dy <= radius; dy++){
-            for(int dx = -radius; dx <= radius; dx++){
+        for (int dy = -radius; dy <= radius; dy++) {
+            for (int dx = -radius; dx <= radius; dx++) {
                 float distance = (float)Math.sqrt(dx * dx + dy * dy);
-                if(distance <= radius){
+                if (distance <= radius) {
                     float falloff = 1f - distance / (radius + 1f);
-                    deathFalloff[dy + radius][dx + radius] = falloff * falloff;
+                    // Broad plateau near the killzone center with smooth outer falloff
+                    deathFalloff[dy + radius][dx + radius] = 0.25f + 0.75f * (falloff * falloff);
                 }
             }
         }
     }
 
     /** Cost added to flowfield weight per point of heat. */
-    public static final float pathHeatWeight = 0.24f;
+    public static final float pathHeatWeight = 0.65f;
     /** Cost added to direct-movement distance per point of heat. */
-    public static final float directHeatWeight = 0.24f;
+    public static final float directHeatWeight = 0.65f;
 
     private static boolean initialized;
     private static int worldWidth = -1;
@@ -68,22 +73,44 @@ public final class NeoplasmDeathHeatmap {
         Events.on(EventType.ResetEvent.class, event -> clear());
     }
 
-    private static boolean isNeoplasm(Unit unit) {
+    /**
+     * Returns true for kamikaze/suicide bomber units that are intentionally
+     * meant to charge straight into fortified walls and chokepoints.
+     */
+    public static boolean isSuicideBomber(Unit unit) {
         if (unit == null) return false;
+        if (unit instanceof TimedKillc) return true;
+        if (unit.controller() instanceof SuicideAI) return true;
+        return unit.type == RUnitTypes.hydroBomber
+                || unit.type == UnitTypes.crawler;
+    }
+
+    /**
+     * Returns true if the unit belongs to the Neoplasm assault/support roster
+     * and should participate in death-heatmap learning and chokepoint avoidance.
+     */
+    public static boolean isNeoplasm(Unit unit) {
+        if (unit == null || isSuicideBomber(unit)) return false;
+
         var controller = unit.controller();
         if (controller instanceof NeoplasmAIController
                 || controller instanceof NeoplasmFlyingAI
-                || controller instanceof NeoplasmGroundAI) return true;
+                || controller instanceof NeoplasmGroundAI) {
+            return true;
+        }
+
+        if (unit.team == Team.neoplastic) return true;
 
         return unit.type == RUnitTypes.pallium
-            || unit.type == RUnitTypes.miserable
-            || unit.type == RUnitTypes.hydroBomber
-            || unit.type == RUnitTypes.kalyx
-            || unit.type == RUnitTypes.mule
-            || unit.type == RUnitTypes.worm
-            || unit.type == RUnitTypes.blob
-            || unit.type == RUnitTypes.squid
-            || unit.type == RUnitTypes.matte;
+                || unit.type == RUnitTypes.miserable
+                || unit.type == RUnitTypes.kalyx
+                || unit.type == RUnitTypes.mule
+                || unit.type == RUnitTypes.worm
+                || unit.type == RUnitTypes.blob
+                || unit.type == RUnitTypes.squid
+                || unit.type == RUnitTypes.matte
+                || unit.type == RUnitTypes.siegeCrawler
+                || unit.type == RUnitTypes.sporeCarrier;
     }
 
     private static boolean isDeathHeatSuppressed(Unit unit) {
@@ -96,6 +123,7 @@ public final class NeoplasmDeathHeatmap {
 
     private static void recordDeath(Unit unit) {
         if (!isNeoplasm(unit)) return;
+
         if (isDeathHeatSuppressed(unit)) {
             NeoplasmPerfMonitor.deathSuppressed();
             return;
@@ -139,11 +167,15 @@ public final class NeoplasmDeathHeatmap {
         return result;
     }
 
+    private static void bumpRevision(Team team) {
+        revisions.put(team, revisions.get(team, 0) + 1);
+    }
+
     private static void addDeathHeat(Team team, Tile center) {
         HeatGrid heat = grid(team, true);
         if (heat == null) return;
 
-        revisions.put(team, revisions.get(team, 0) + 1);
+        bumpRevision(team);
         float now = Time.time;
         for (int dy = -radius; dy <= radius; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -151,11 +183,13 @@ public final class NeoplasmDeathHeatmap {
                 if (tile == null) continue;
 
                 float falloff = deathFalloff[dy + radius][dx + radius];
-                if(falloff <= 0f) continue;
+                if (falloff <= 0f) continue;
 
                 int index = tile.array();
+                if (index < 0 || index >= heat.values.length) continue;
+
                 float previous = readHeat(heat, index, now);
-                if(!heat.tracked[index]){
+                if (!heat.tracked[index]) {
                     heat.tracked[index] = true;
                     heat.active.add(index);
                 }
@@ -168,7 +202,7 @@ public final class NeoplasmDeathHeatmap {
     /** Returns the current decayed danger at a tile for this team's units. */
     public static float getHeat(Team team, Tile tile) {
         long perfStart = NeoplasmPerfMonitor.startTimer();
-        try{
+        try {
             if (tile == null) return 0f;
 
             HeatGrid heat = grid(team, false);
@@ -177,7 +211,7 @@ public final class NeoplasmDeathHeatmap {
             int index = tile.array();
             if (index < 0 || index >= heat.values.length) return 0f;
             return readHeat(heat, index, Time.time);
-        }finally{
+        } finally {
             NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_HEAT, perfStart);
         }
     }
@@ -185,10 +219,6 @@ public final class NeoplasmDeathHeatmap {
     /** Monotonic team-local version used to refresh cached strategic routes. */
     public static int getRevision(Team team) {
         return team == null ? 0 : revisions.get(team, 0);
-    }
-
-    private static void bumpRevision(Team team) {
-        if (team != null) revisions.put(team, revisions.get(team, 0) + 1);
     }
 
     /** Copies the current, time-decayed danger field into a reusable tile-sized array. */
@@ -204,13 +234,17 @@ public final class NeoplasmDeathHeatmap {
         float now = Time.time;
         int limit = Math.min(output.length, heat.values.length);
         boolean expiredAny = false;
+
         for (int i = heat.active.size - 1; i >= 0; i--) {
             int index = heat.active.get(i);
             if (index < 0 || index >= limit) {
-                if (index >= 0 && index < heat.tracked.length) heat.tracked[index] = false;
+                if (index >= 0 && index < heat.tracked.length) {
+                    heat.tracked[index] = false;
+                }
                 heat.active.removeIndex(i);
                 continue;
             }
+
             float value = readHeat(heat, index, now);
             if (value <= 0f) {
                 heat.tracked[index] = false;
@@ -220,7 +254,10 @@ public final class NeoplasmDeathHeatmap {
                 output[index] = value;
             }
         }
-        if (expiredAny) bumpRevision(team);
+
+        if (expiredAny) {
+            bumpRevision(team);
+        }
     }
 
     private static float readHeat(HeatGrid heat, int index, float now) {
@@ -244,7 +281,11 @@ public final class NeoplasmDeathHeatmap {
             value *= decayFactors[step];
             heat.updated[index] = last + step * decayStepTicks;
         }
-        if (value < 0.25f) value = 0f;
+
+        if (value < 0.25f) {
+            value = 0f;
+        }
+
         heat.values[index] = value;
         return value;
     }
