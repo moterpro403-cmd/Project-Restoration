@@ -133,7 +133,10 @@ public class NeoplasmAIController extends AIController {
 
         Tile next = RVars.pathfinderCustom.getTargetTileDodge(tile, field, DodgeTile);
         if (next == null || next == tile) next = getEdgeEscapeTile();
-        return next == null ? tile : next;
+
+        // Null means avoidance has no usable alternate step. Callers must
+        // resume their original Mindustry pathfinding in that case.
+        return next == tile ? null : next;
     }
 
     @Nullable
@@ -164,17 +167,16 @@ public class NeoplasmAIController extends AIController {
         Tile tile = this.unit.tileOn();
         if (tile == null) return;
 
-        // Do not alter ordinary unit routing until a death has actually been
-        // remembered and the custom flowfield is initialized.
+        // Use avoidance only when it provides a distinct, valid next step.
+        // Otherwise preserve the unit's original Mindustry flowfield movement.
         Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
-        if (dodgeTarget != null) {
-            if (dodgeTarget != tile
-                && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
-                this.unit.movePref(vec.trns(
-                    this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()),
-                    this.unit.speed()
-                ));
-            }
+        if (dodgeTarget != null
+            && dodgeTarget != tile
+            && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
+            this.unit.movePref(vec.trns(
+                this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()),
+                this.unit.speed()
+            ));
             return;
         }
 

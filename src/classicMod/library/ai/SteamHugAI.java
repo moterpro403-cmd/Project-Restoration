@@ -41,22 +41,18 @@ public class SteamHugAI extends NeoplasmAIController {
             return;
         }
 
-        // Activate avoidance only after a real death was recorded and the
-        // custom route is ready. Normal vent travel keeps its original code.
+        // Prefer a safe death-aware step when one exists.
         Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
-        if (dodgeTarget != null) {
-            if (dodgeTarget != tile
-                && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
-                this.unit.movePref(
-                    vec.trns(this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()), this.unit.speed())
-                );
-            } else {
-                stucked = true;
-            }
+        if (dodgeTarget != null
+            && dodgeTarget != tile
+            && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
+            this.unit.movePref(
+                vec.trns(this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()), this.unit.speed())
+            );
             return;
         }
 
-        // Original Mindustry 160.7 pathfinding fallback.
+        // No usable safe step: resume the original Mindustry 160.7 vent route.
         Tile targetTile = Vars.pathfinder.getTargetTile(
             tile,
             Vars.pathfinder.getField(this.unit.team, costType, pathTarget)
