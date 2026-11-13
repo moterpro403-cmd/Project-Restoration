@@ -2,7 +2,7 @@ package classicMod.library.ai;
 
 import arc.math.geom.Vec2;
 import mindustry.entities.units.AIController;
-import mindustry.game.UnitStance;
+import mindustry.ai.UnitStance;
 import mindustry.gen.Teamc;
 import mindustry.gen.Unit;
 
