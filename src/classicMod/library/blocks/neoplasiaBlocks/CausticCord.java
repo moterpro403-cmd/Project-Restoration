@@ -171,7 +171,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
-            if (!NeoplasmGrowthLimiter.allowExpansion(team)) {
+            if (!NeoplasmGrowthLimiter.allowCordExpansion(team)) {
                 grow = false;
                 return;
             }
