@@ -162,7 +162,9 @@ public class NeoplasmBlock extends Block {
                 for (int dy = -1; dy < 2; dy++) {
                     for (int dx = -1; dx < 2; dx++) {
                         Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
-                        if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                        // A vent near the map edge may have neighbors outside the world.
+                        if (tile != null && tile.floor() != null
+                            && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
                             steam += tile.floor().attributes.get(Attribute.steam);
                             if (tile.floor().attributes.get(Attribute.steam) >= 1) {
                                 if (tile.build == null) tile.setBlock(cordPlacement, team, rotation);
@@ -173,7 +175,7 @@ public class NeoplasmBlock extends Block {
             }
             if (steam >= 9f){
                 Tile replacement = Vars.world.tile(this.tile.x, this.tile.y);
-                replacement.setBlock(replacmentBlock, team, rotation);
+                if (replacement != null) replacement.setBlock(replacmentBlock, team, rotation);
             }
         }
 
