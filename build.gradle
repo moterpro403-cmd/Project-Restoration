@@ -75,12 +75,20 @@ task jarAndroid {
         def archiveName = base.archivesName.get()
         def libsDir = new File(layout.buildDirectory.get().asFile, "libs")
 
-        def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")])
-            .collect { "--classpath \"${it.path}\"" }
-            .join(" ")
+        def classpathFiles = configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]
+        def cmdArgs = [d8]
+        classpathFiles.each { file ->
+            cmdArgs.addAll(["--classpath", file.absolutePath])
+        }
+        cmdArgs.addAll([
+            "--min-api", "21",
+            "--output", new File(libsDir, "${archiveName}Android.jar").absolutePath,
+            new File(libsDir, "${archiveName}Desktop.jar").absolutePath
+        ])
 
-        def cmd = "\"$d8\" $dependencies --min-api 21 --output \"${archiveName}Android.jar\" \"${archiveName}Desktop.jar\""
-        def proc = cmd.execute(null, libsDir)
+        // ProcessBuilder receives the executable and every argument separately.
+        // Quoting a path inside a command string breaks execution on Linux.
+        def proc = new ProcessBuilder(cmdArgs).directory(libsDir).start()
         proc.waitForProcessOutput(System.out, System.err)
         if (proc.exitValue() != 0) {
             throw new GradleException("d8 dexing failed with exit code ${proc.exitValue()}")
