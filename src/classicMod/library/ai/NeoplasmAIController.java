@@ -16,6 +16,8 @@ public class NeoplasmAIController extends AIController {
     public Seq<Tile> DodgeTile = new Seq<>(); // TODO thus
 
     public boolean update;
+    // Compatibility flag used by the mod's specialized Neoplasm-derived controllers.
+    public boolean ignore;
 
     @Override
     public void updateUnit() {
@@ -27,8 +29,22 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     public Tile getClosestVent() {
-        Seq<Tile> avaliableVents = PathfinderExtended.SteamVents.copy().removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding);
+        return getClosestVent(false);
+    }
+
+    @Nullable
+    public Tile getClosestVent(boolean avoidDangerous) {
+        Seq<Tile> avaliableVents = PathfinderExtended.SteamVents.copy()
+            .removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding || tile.block() != Blocks.air);
         Tile vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
+        if (vent == null) return null;
+        if (avoidDangerous) {
+            var enemy = Units.findEnemyTile(this.unit.team, vent.getX(), vent.getY(), 240f, building -> !building.dead);
+            if (enemy != null) {
+                avaliableVents.removeAll(tile -> tile.dst(enemy) <= 80f);
+                vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
+            }
+        }
         return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
     }
 
@@ -55,9 +71,23 @@ public class NeoplasmAIController extends AIController {
         return avaliableLand.first();
     }
 
+    
+    // Compatibility hooks for specialized controllers. The original Neoplasm
+    // controller keeps its original pathing behavior; these hooks let variants
+    // opt into their own steering without forcing extra scans on every unit.
+    protected boolean avoidNearbyDanger(Tile destination) {
+        return false;
+    }
+
+    public void routeAir() {
+        if (target == null) return;
+        vec.set(target.getX() - unit.x, target.getY() - unit.y);
+        if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
+    }
+
     @Override
     public void pathfind(int pathTarget) {
-        int costType = this.unit.pathType();
+        int costType = this.unit.type.flowfieldPathType;
         Tile tile = this.unit.tileOn();
         if (tile != null) {
             Tile targetTile = Vars.pathfinder.getTargetTile(tile, Vars.pathfinder.getField(this.unit.team, costType, pathTarget));
