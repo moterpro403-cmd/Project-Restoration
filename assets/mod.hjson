@@ -1,23 +1,8 @@
-#the mod name as displayed in-game
 displayName: "Project: Restoration"
-
-#the internal name of your mod
-name: "restored-mind" #projectv5-mod
-
-#your name
+name: "restored-mind"
 author: "VvSeanGtvV"
-
-#the fully qualified main class of the mod
 main: "classicMod.ClassicMod"
-
-#the mod description as seen in the mod dialog
-description: "A Mindustry builds including some classic ones are added to Mindustry v8!"
-
-#the mod version
-version: 0.6.0 Beta
-
-#the minimum game build required to run this mod
+description: "Mindustry builds including classic ones added to Mindustry v8!"
+version: "0.6.0-beta"
 minGameVersion: "160.7"
-
-#this is a java mod
 java: true
