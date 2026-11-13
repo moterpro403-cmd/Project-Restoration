@@ -78,6 +78,28 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
     public class CordBuild extends NeoplasmBuilding {
 
+        /** Derived vascular state, refreshed by NeoplasmCordNetwork. */
+        public boolean connected;
+        public int hopDistance = Integer.MAX_VALUE;
+        public float vascularPressure;
+        public int connectionMask;
+
+        /** Refresh visual adjacency without changing the existing transport interfaces. */
+        public void refreshConnections() {
+            int mask = 0;
+            for (int i = 0; i < 4; i++) {
+                Point2 direction = Geometry.d4[i];
+                Tile other = Vars.world.tile(tile.x + direction.x, tile.y + direction.y);
+                if (other == null || other.build == null || other.build.team != team) continue;
+                if (other.build instanceof CordBuild
+                    || other.build instanceof CausticHeart.HeartBuilding
+                    || other.build instanceof NeoplasmBuilding) {
+                    mask |= (1 << i);
+                }
+            }
+            connectionMask = mask;
+        }
+
         //TODO make it work YIPPE
         int facingRot = 1;
         public float progress;
