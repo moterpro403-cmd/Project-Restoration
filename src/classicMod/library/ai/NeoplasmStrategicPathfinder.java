@@ -6,6 +6,8 @@ import arc.util.Time;
 import classicMod.content.RVars;
 import mindustry.Vars;
 import mindustry.game.Team;
+import mindustry.gen.Groups;
+import mindustry.gen.Unit;
 import mindustry.world.Tile;
 import mindustry.world.blocks.defense.turrets.Turret;
 
@@ -23,6 +25,8 @@ public final class NeoplasmStrategicPathfinder {
     // Full route maps are expensive on mobile. Rebuild at a fixed interval,
     // not once for every unit death recorded by the heat map.
     private static final long refreshMillis = 10000L;
+    private static final long trafficRefreshMillis = 500L;
+    private static final float congestionWeight = 5f;
     private static final float deathRiskWeight = 0.48f;
     private static final float turretRiskWeight = 1f;
     private static final float turretPower = 24f;
@@ -30,6 +34,7 @@ public final class NeoplasmStrategicPathfinder {
 
     private static final HashMap<Long, RouteField> fields = new HashMap<>();
     private static final HashMap<Integer, ThreatField> threatFields = new HashMap<>();
+    private static final HashMap<Integer, TrafficField> trafficFields = new HashMap<>();
     private static Object threatWorld;
     private static int threatWidth = -1, threatHeight = -1;
 
@@ -37,25 +42,25 @@ public final class NeoplasmStrategicPathfinder {
     }
 
     /** Route to an existing shared flowfield target set, such as the enemy core. */
-    public static Tile nextStep(Tile current, Team team, int costType, int pathTarget){
+    public static Tile nextStep(Tile current, Team team, int costType, int pathTarget, int unitId){
         if(current == null || team == null || Vars.world == null || RVars.pathfinderCustom == null) return null;
         PathfinderCustom.Flowfield base = RVars.pathfinderCustom.getField(team, costType, pathTarget);
         if(base == null || !base.initialized || !base.hasTargets() || base.resolution != 1) return null;
 
         long key = key(team, costType, pathTarget, false, false);
         RouteField route = getOrBuild(key, team, base, null, false);
-        return chooseNext(current, base, route);
+        return chooseNext(current, team, base, route, unitId);
     }
 
     /** Route to a specific building, used by direct-movement flying AI. */
-    public static Tile nextStepTo(Tile current, Tile destination, Team team, int costType){
+    public static Tile nextStepTo(Tile current, Tile destination, Team team, int costType, int unitId){
         if(current == null || destination == null || team == null || Vars.world == null
             || current == destination || destination.array() < 0) return null;
 
         // Flying units often select different buildings as targets. A full
         // Dijkstra build for every target creates thousands of large route fields.
         // Use the shared threat map and score only the eight immediate moves.
-        return chooseLocalSafeStep(current, destination, team);
+        return chooseLocalSafeStep(current, destination, team, unitId);
     }
 
     private static long key(Team team, int costType, int target, boolean position, boolean air){
@@ -216,17 +221,15 @@ public final class NeoplasmStrategicPathfinder {
         }
     }
 
-    private static Tile chooseNext(Tile current, PathfinderCustom.Flowfield base, RouteField route){
+    private static Tile chooseNext(Tile current, Team team, PathfinderCustom.Flowfield base,
+                                   RouteField route, int unitId){
         if(route == null || current == null) return null;
         int x = current.x, y = current.y;
         if(x < 0 || y < 0 || x >= route.width || y >= route.height) return null;
         int index = x + y * route.width;
         if(index < 0 || index >= route.distance.length || Float.isInfinite(route.distance[index])) return null;
 
-        int normalIndex = -1;
-        int[] normalWeights = base.hasComplete ? base.completeWeights : base.weights;
-        float normalBest = Float.POSITIVE_INFINITY;
-
+        float[] traffic = getTrafficField(team, route.width, route.height).density;
         int strategicIndex = -1;
         float strategicBest = Float.POSITIVE_INFINITY;
 
@@ -242,28 +245,22 @@ public final class NeoplasmStrategicPathfinder {
             }
 
             float routeCost = route.distance[next];
-            if(routeCost < strategicBest){
-                strategicBest = routeCost;
-                strategicIndex = next;
-            }
+            // Only choose steps that still make forward progress. Congestion
+            // breaks ties between viable steps instead of causing random loops.
+            if(routeCost >= route.distance[index]) continue;
 
-            if(normalWeights != null && next < normalWeights.length && normalWeights[next] >= 0
-                && normalWeights[next] < normalBest){
-                normalBest = normalWeights[next];
-                normalIndex = next;
+            float crowd = traffic[next];
+            // Stable per-unit tie-break helps nearby units fan out when crowd
+            // costs are equal, without making their route oscillate every tick.
+            float tie = ((unitId * 31 + next * 17) & 7) * 0.015625f;
+            float score = routeCost + crowd * congestionWeight + tie;
+            if(score < strategicBest){
+                strategicBest = score;
+                strategicIndex = next;
             }
         }
 
-        if(strategicIndex < 0 || strategicIndex == index || strategicBest >= route.distance[index]) return null;
-        if(normalIndex == strategicIndex) return null;
-
-        // Avoid rerouting because of insignificant cost noise; the strategic
-        // path must be meaningfully different from the original shortest field.
-        float baseline = index < normalWeights.length && normalWeights[index] >= 0
-            ? normalWeights[index] : Float.POSITIVE_INFINITY;
-        if(!Float.isInfinite(baseline)
-            && route.distance[index] - baseline < 1f) return null;
-
+        if(strategicIndex < 0 || strategicIndex == index) return null;
         return Vars.world.tile(strategicIndex % route.width, strategicIndex / route.width);
     }
 
@@ -289,18 +286,20 @@ public final class NeoplasmStrategicPathfinder {
     }
 
     /** Cheap local steering for flyers: no per-building full-map Dijkstra. */
-    private static Tile chooseLocalSafeStep(Tile current, Tile destination, Team team){
+    private static Tile chooseLocalSafeStep(Tile current, Tile destination, Team team, int unitId){
         int width = Vars.world.width(), height = Vars.world.height();
         if(current.x < 0 || current.y < 0 || current.x >= width || current.y >= height) return null;
 
         float[] turret = getThreatField(team, width, height).risk;
+        float[] traffic = getTrafficField(team, width, height).density;
         int currentIndex = current.array();
         float currentHeat = NeoplasmDeathHeatmap.getHeat(team, current);
         float currentTurret = currentIndex >= 0 && currentIndex < turret.length ? turret[currentIndex] : 0f;
         float currentScore = (float)Math.sqrt(
             (double)(current.x - destination.x) * (current.x - destination.x)
             + (double)(current.y - destination.y) * (current.y - destination.y)
-        ) + currentHeat * deathRiskWeight + currentTurret * turretRiskWeight;
+        ) + currentHeat * deathRiskWeight + currentTurret * turretRiskWeight
+            + traffic[currentIndex] * congestionWeight;
 
         Tile best = null;
         float bestScore = currentScore;
@@ -317,13 +316,67 @@ public final class NeoplasmStrategicPathfinder {
                 (double)(nx - destination.x) * (nx - destination.x)
                 + (double)(ny - destination.y) * (ny - destination.y)
             );
-            float score = distance + heat * deathRiskWeight + risk * turretRiskWeight;
+            float tie = ((unitId * 31 + index * 17) & 7) * 0.015625f;
+            float score = distance + heat * deathRiskWeight + risk * turretRiskWeight
+                + traffic[index] * congestionWeight + tie;
             if(score + 0.05f < bestScore){
                 bestScore = score;
                 best = next;
             }
         }
         return best;
+    }
+
+    /**
+     * Periodically samples allied unit positions. This is intentionally a
+     * compact per-team density map, not a per-unit scan during each decision.
+     */
+    private static TrafficField getTrafficField(Team team, int width, int height){
+        long now = Time.millis();
+        TrafficField cached = trafficFields.get(team.id);
+        if(cached != null && cached.width == width && cached.height == height
+            && now - cached.builtAt < trafficRefreshMillis){
+            return cached;
+        }
+
+        float[] density = new float[width * height];
+        Groups.unit.each(other -> {
+            if(other == null || other.team != team || other.dead() || !other.isAdded()) return;
+            Tile tile = other.tileOn();
+            if(tile == null) return;
+
+            int index = tile.array();
+            if(index < 0 || index >= density.length) return;
+            density[index] += 1f;
+
+            // Spread a smaller amount to adjacent tiles to create spacing
+            // before units physically pile onto a one-tile bottleneck.
+            for(Point2 offset : Geometry.d8){
+                Tile nearby = Vars.world.tile(tile.x + offset.x, tile.y + offset.y);
+                if(nearby != null){
+                    int nearbyIndex = nearby.array();
+                    if(nearbyIndex >= 0 && nearbyIndex < density.length){
+                        density[nearbyIndex] += 0.18f;
+                    }
+                }
+            }
+        });
+
+        TrafficField rebuilt = new TrafficField(density, width, height, now);
+        trafficFields.put(team.id, rebuilt);
+        return rebuilt;
+    }
+
+    private static final class TrafficField{
+        final float[] density;
+        final int width, height;
+        final long builtAt;
+        TrafficField(float[] density, int width, int height, long builtAt){
+            this.density = density;
+            this.width = width;
+            this.height = height;
+            this.builtAt = builtAt;
+        }
     }
 
     private static final class ThreatField{
@@ -434,6 +487,7 @@ public final class NeoplasmStrategicPathfinder {
     public static void clear(){
         fields.clear();
         threatFields.clear();
+        trafficFields.clear();
         threatWorld = null;
         threatWidth = -1;
         threatHeight = -1;

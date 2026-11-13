@@ -103,7 +103,7 @@ public class NeoplasmAIController extends AIController {
 
         // Prefer a whole-route danger-aware path before applying the local fallback.
         Tile strategic = NeoplasmStrategicPathfinder.nextStep(
-            tile, unit.team, unit.type.flowfieldPathType, pathTarget
+            tile, unit.team, unit.type.flowfieldPathType, pathTarget, unit.id
         );
         if (strategic != null && strategic != tile) return strategic;
 
@@ -252,7 +252,7 @@ public class NeoplasmAIController extends AIController {
         if (current == null) return false;
 
         Tile next = NeoplasmStrategicPathfinder.nextStepTo(
-            current, destination, unit.team, costType
+            current, destination, unit.team, costType, unit.id
         );
         if (next == null || next == current) return false;
 

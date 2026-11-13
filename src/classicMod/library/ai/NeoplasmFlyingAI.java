@@ -30,19 +30,8 @@ public class NeoplasmFlyingAI extends FlyingAI {
 
     @Override
     public Teamc findTarget(float x, float y, float range, boolean air, boolean ground) {
-        Teamc result = findMainTarget(x, y, range, air, ground);
-
-        // Main-target selection may deliberately return a distant enemy core or
-        // flagged building as a strategic travel destination. The stock
-        // checkTarget() marks anything outside weapon range invalid; replacing
-        // that result with a local search can return null and leave flyers idle.
-        // Still prioritize an enemy that is already within weapon range.
-        if (result == null) return target(x, y, range, air, ground);
-        if (checkTarget(result, x, y, range)) {
-            Teamc nearby = target(x, y, range, air, ground);
-            return nearby != null ? nearby : result;
-        }
-        return result;
+        var result = findMainTarget(x, y, range, air, ground);
+        return checkTarget(result, x, y, range) ? target(x, y, range, air, ground) : result;
     }
 
     @Override
