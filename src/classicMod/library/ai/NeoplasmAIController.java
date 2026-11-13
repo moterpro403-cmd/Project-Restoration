@@ -77,13 +77,13 @@ public class NeoplasmAIController extends AIController {
             Tile candidate = Vars.world.tile(tile.x + offset.x, tile.y + offset.y);
             if (candidate == null) continue;
             int index = candidate.array();
-            if (index < 0 || index >= weights.length || !unit.canPass(candidate.x, candidate.y)) continue;
+            if (index < 0 || index >= weights.length || !field.passable(index)) continue;
 
             if (offset.x != 0 && offset.y != 0) {
                 Tile horizontal = Vars.world.tile(tile.x + offset.x, tile.y);
                 Tile vertical = Vars.world.tile(tile.x, tile.y + offset.y);
                 if (horizontal == null || vertical == null
-                    || !unit.canPass(horizontal.x, horizontal.y) || !unit.canPass(vertical.x, vertical.y)) continue;
+                    || !field.passable(horizontal.array()) || !field.passable(vertical.array())) continue;
             }
 
             int progress = weights[index];
