@@ -8,6 +8,7 @@ package classicMod.library.ai;
 import arc.*;
 import arc.func.Prov;
 import arc.math.Mathf;
+import arc.math.geom.Geometry;
 import arc.math.geom.*;
 import arc.struct.*;
 import arc.util.*;
@@ -408,103 +409,81 @@ public class PathfinderCustom implements Runnable {
 
     @Nullable
     public Tile getTargetTileDodge(Tile tile, Flowfield path, Seq<Tile> dangerTile) {
-        if (tile == null) {
-            return null;
-        } else if (path == null || !path.initialized) {
-            return tile;
-        } else {
-            if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > (long)path.refreshRate) {
-                path.lastUpdateTime = Time.millis();
-                this.tmpArray.clear();
-                path.getPositions(this.tmpArray);
-                synchronized(path.targets) {
-                    if (path.targets.size != 1 || this.tmpArray.size != 1 || path.targets.first() != this.tmpArray.first()) {
-                        path.updateTargetPositions();
-                        this.queue.post(() -> {
-                            this.updateTargets(path);
-                        });
-                    }
+        if (tile == null) return null;
+        if (path == null || !path.initialized || dangerTile == null || dangerTile.isEmpty()) return tile;
+
+        if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > (long)path.refreshRate) {
+            path.lastUpdateTime = Time.millis();
+            this.tmpArray.clear();
+            path.getPositions(this.tmpArray);
+            synchronized (path.targets) {
+                if (path.targets.size != 1 || this.tmpArray.size != 1
+                    || path.targets.first() != this.tmpArray.first()) {
+                    path.updateTargetPositions();
+                    this.queue.post(() -> this.updateTargets(path));
                 }
-            }
-
-            int[] values = path.hasComplete ? path.completeWeights : path.weights;
-            int apos = tile.array();
-            int value = values[apos];
-            Tile current = null, danger = null;
-            int tl = 0;
-            Point2[] var8 = DirectionalGenerator.generateDirections(6, false);
-            int var9 = var8.length;
-
-            if (dangerTile != null && !dangerTile.isEmpty()) {
-                float nearestDistance = Float.MAX_VALUE;
-                for (Tile dangerCandidate : dangerTile) {
-                    if (dangerCandidate == null) continue;
-                    float distance = dangerCandidate.dst(tile);
-                    if (distance < nearestDistance) {
-                        nearestDistance = distance;
-                        danger = dangerCandidate;
-                    }
-                }
-            }
-
-            for(int var10 = 0; var10 < var9; ++var10) {
-                Point2 point = var8[var10];
-                int dx = tile.x + point.x;
-                int dy = tile.y + point.y;
-                Tile other = Vars.world.tile(dx, dy);
-                if (other != null) {
-                    if (danger == null) {
-                        int packed = Vars.world.packArray(dx, dy);
-                        if (values[packed] < value && (current == null || values[packed] < tl) && path.passable(packed) && (point.x == 0 || point.y == 0 || path.passable(Vars.world.packArray(tile.x + point.x, tile.y)) && path.passable(Vars.world.packArray(tile.x, tile.y + point.y)))) {
-                            current = other;
-                            tl = values[packed];
-                        }
-                    } else {
-                        if (danger.dst(other) > 40){
-                            int packed = Vars.world.packArray(dx, dy);
-                            if (values[packed] < value && (current == null || values[packed] < tl) && path.passable(packed) && (point.x == 0 || point.y == 0 || path.passable(Vars.world.packArray(tile.x + point.x, tile.y)) && path.passable(Vars.world.packArray(tile.x, tile.y + point.y)))) {
-                                current = other;
-                                tl = values[packed];
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (current != null && tl != -1 && (path.cost != ((PathCost[])costTypes.items)[0] || !current.dangerous() || tile.dangerous())) {
-                /*Tile danger;
-                Tile finalCurrent = current;
-                if (dangerTile.size > 0) {
-                    dangerTile.sort(tile1 -> tile1.dst(finalCurrent));
-                    danger = dangerTile.get(0);
-                } else {
-                    danger = null;
-                }
-                if (danger != null){
-                    int size = 4;
-                    int div = size / 2;
-                    Seq<Tile> closestTile = new Seq<>(size*size);
-
-                    for (int y = -div; y < size; y++){
-                        for (int x = -div; x < size; x++){
-                            closestTile.add(Vars.world.tile(x + current.x, y + current.y));
-                        }
-                    }
-                    closestTile.removeAll(tile1 -> tile1.dst(danger) < 40f);
-                    closestTile.sort(tile1 -> tile1.dst(finalCurrent));
-                    if (closestTile.size > 0) {
-                        return closestTile.get(0);
-                    } else {
-                        return current;
-                    }
-                } else {
-                    return current;
-                }*/
-                return current;
-            } else {
-                return tile;
             }
         }
+
+        int[] values = path.hasComplete ? path.completeWeights : path.weights;
+        int currentIndex = tile.array();
+        if (currentIndex < 0 || currentIndex >= values.length) return tile;
+
+        int currentWeight = values[currentIndex];
+        Tile bestPathStep = null;
+        int bestPathWeight = Integer.MAX_VALUE;
+
+        Tile bestEscapeStep = null;
+        float currentClearance = nearestDangerDistance(tile, dangerTile);
+        float bestClearance = currentClearance;
+
+        // Check only immediate neighbors so movement cannot skip across walls.
+        for (Point2 point : Geometry.d8) {
+            int dx = tile.x + point.x;
+            int dy = tile.y + point.y;
+            Tile other = Vars.world.tile(dx, dy);
+            if (other == null) continue;
+
+            int packed = Vars.world.packArray(dx, dy);
+            if (packed < 0 || packed >= values.length || !path.passable(packed)) continue;
+
+            // Reject diagonal corner cutting.
+            if (point.x != 0 && point.y != 0) {
+                int horizontal = Vars.world.packArray(tile.x + point.x, tile.y);
+                int vertical = Vars.world.packArray(tile.x, tile.y + point.y);
+                if (!path.passable(horizontal) || !path.passable(vertical)) continue;
+            }
+
+            float clearance = nearestDangerDistance(other, dangerTile);
+            if (clearance <= 40f) continue;
+
+            // Prefer the safest neighbor that still makes progress toward the
+            // flowfield target.
+            if (values[packed] >= 0 && values[packed] < currentWeight
+                && values[packed] < bestPathWeight) {
+                bestPathStep = other;
+                bestPathWeight = values[packed];
+            }
+
+            // If every route-progress step is blocked by the danger radius,
+            // move outward first. The next tick will try to rejoin the field.
+            if (clearance > bestClearance) {
+                bestEscapeStep = other;
+                bestClearance = clearance;
+            }
+        }
+
+        if (bestPathStep != null) return bestPathStep;
+        if (bestEscapeStep != null && bestClearance > currentClearance) return bestEscapeStep;
+        return tile;
+    }
+
+    private float nearestDangerDistance(Tile tile, Seq<Tile> dangerTiles) {
+        float nearest = Float.MAX_VALUE;
+        for (Tile danger : dangerTiles) {
+            if (danger != null) nearest = Math.min(nearest, danger.dst(tile));
+        }
+        return nearest;
     }
 
     /** Increments the search and sets up flow sources. Does not change the frontier. */

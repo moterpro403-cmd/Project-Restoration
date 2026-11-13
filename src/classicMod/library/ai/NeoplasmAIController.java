@@ -6,6 +6,7 @@ import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.*;
 import classicMod.content.RVars;
+import classicMod.content.RUnitTypes;
 import classicMod.library.GeometryPlus;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
@@ -33,7 +34,7 @@ public class NeoplasmAIController extends AIController {
         // Discover nearby units that use this same Neoplasm AI family.
         Unit neo = Units.closest(unit.team, unit.x, unit.y, u ->
             u != this.unit &&
-            u.controller() instanceof NeoplasmAIController &&
+            isNeoplasmUnit(u) &&
             !knownNeoplasms.contains(u)
         );
 
@@ -49,7 +50,8 @@ public class NeoplasmAIController extends AIController {
             if (neoplasm == null || !neoplasm.dead) continue;
 
             Tile deadTile = neoplasm.tileOn();
-            if (deadTile != null && neoplasm.controller() instanceof NeoplasmAIController ai && !ai.ignore) {
+            boolean ignoredDeath = neoplasm.controller() instanceof NeoplasmAIController ai && ai.ignore;
+            if (deadTile != null && !ignoredDeath) {
                 for (Point2 offset : GeometryPlus.d8plus) {
                     Tile danger = Vars.world.tile(deadTile.x + offset.x, deadTile.y + offset.y);
                     if (danger != null) DodgeTile.addUnique(danger);
@@ -117,6 +119,32 @@ public class NeoplasmAIController extends AIController {
      * radius and remains biased toward the unit's original destination.
      * Null means no safe alternative was found.
      */
+    /** Minimum distance from a tile to any remembered death location. */
+    public float dangerDistance(Tile tile) {
+        if (tile == null || DodgeTile.isEmpty()) return Float.MAX_VALUE;
+
+        float nearest = Float.MAX_VALUE;
+        for (Tile danger : DodgeTile) {
+            if (danger != null) nearest = Math.min(nearest, danger.dst(tile));
+        }
+        return nearest;
+    }
+
+    private boolean isNeoplasmUnit(Unit candidate) {
+        if (candidate == null) return false;
+        if (candidate.controller() instanceof NeoplasmAIController) return true;
+
+        // Include Neoplasm types that deliberately retain their stock Mindustry AI.
+        return candidate.type == RUnitTypes.pallium
+            || candidate.type == RUnitTypes.miserable
+            || candidate.type == RUnitTypes.hydroBomber
+            || candidate.type == RUnitTypes.kalyx
+            || candidate.type == RUnitTypes.mule
+            || candidate.type == RUnitTypes.worm
+            || candidate.type == RUnitTypes.blob
+            || candidate.type == RUnitTypes.squid;
+    }
+
     @Nullable
     protected Tile getClosestSafeTarget(int range, Tile danger, Tile destination) {
         if (danger == null || destination == null || unit == null) return null;
@@ -131,7 +159,7 @@ public class NeoplasmAIController extends AIController {
                     && candidate.block() == Blocks.air
                     && candidate.floor() != null
                     && !candidate.floor().isLiquid
-                    && danger.dst(candidate) >= 80f) {
+                    && dangerDistance(candidate) >= 80f) {
                     safeTiles.add(candidate);
                 }
             }
@@ -150,7 +178,7 @@ public class NeoplasmAIController extends AIController {
 
         Tile current = unit.tileOn();
         Tile danger = closestDanger();
-        if (current == null || danger == null || danger.dst(current) >= 80f) return false;
+        if (current == null || danger == null || dangerDistance(current) >= 80f) return false;
 
         Tile safeTarget = getClosestSafeTarget(15, danger, destination);
         if (safeTarget == null) safeTarget = getEdgeEscapeTile();
@@ -190,33 +218,46 @@ public class NeoplasmAIController extends AIController {
         if (field == null || !field.initialized || !field.hasTargets()) return null;
 
         Tile next = RVars.pathfinderCustom.getTargetTileDodge(tile, field, DodgeTile);
-        if (next == null || next == tile) next = getEdgeEscapeTile();
+        if (next == null || next == tile) {
+            // Only force an escape move when currently inside the danger radius.
+            // Far-away units keep following the normal flowfield until an
+            // actual safe detour is needed.
+            if (dangerDistance(tile) <= 40f) next = getEdgeEscapeTile();
+            else return null;
+        }
 
-        // Null means avoidance has no usable alternate step. Callers must
-        // resume their original Mindustry pathfinding in that case.
         return next == tile ? null : next;
     }
 
     @Nullable
     public Tile getEdgeEscapeTile() {
-        Seq<Tile> candidates = new Seq<>();
+        if (unit == null || DodgeTile.isEmpty()) return null;
 
-        for (Tile danger : DodgeTile) {
-            if (danger == null) continue;
-            for (Point2 offset : Geometry.d8) {
-                Tile neighbor = Vars.world.tile(danger.x + offset.x, danger.y + offset.y);
-                if (neighbor != null
-                    && !DodgeTile.contains(neighbor)
-                    && neighbor.block() == Blocks.air
-                    && neighbor.floor() != null
-                    && !neighbor.floor().isLiquid) {
-                    candidates.add(neighbor);
+        Seq<Tile> candidates = new Seq<>();
+        int radius = 15;
+        int mid = radius / 2;
+
+        // Search around the unit, not just the tiles immediately beside the
+        // death cluster. The old implementation could select a tile that was
+        // still inside the danger zone and steer units back toward it.
+        for (int y = -mid; y < radius; y++) {
+            for (int x = -mid; x < radius; x++) {
+                Tile candidate = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
+                if (candidate != null
+                    && candidate != unit.tileOn()
+                    && candidate.block() == Blocks.air
+                    && candidate.floor() != null
+                    && !candidate.floor().isLiquid
+                    && dangerDistance(candidate) > 40f) {
+                    candidates.add(candidate);
                 }
             }
         }
 
         if (candidates.isEmpty()) return null;
-        return candidates.sort(tile1 -> tile1.dst(unit)).first();
+        return candidates.sort(candidate ->
+            candidate.dst(unit) - Math.min(dangerDistance(candidate) - 40f, 80f) * 0.5f
+        ).first();
     }
 
     @Override
