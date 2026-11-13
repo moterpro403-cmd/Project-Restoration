@@ -1,0 +1,30 @@
+name: Export Requested Source Files
+
+on:
+  push:
+    branches: [restoration-fixes]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package only the requested files
+        run: |
+          mkdir requested-source-files
+          cp src/classicMod/content/RSerpuloTechTree.java requested-source-files/
+          cp src/classicMod/content/RItems.java requested-source-files/
+          cp src/classicMod/content/RBlocks.java requested-source-files/
+          cp src/classicMod/ClassicMod.java requested-source-files/
+          cp build.gradle requested-source-files/
+          cp assets/mod.hjson requested-source-files/
+          cd requested-source-files
+          zip -j ../Requested-Source-Files.zip ./*
+      - name: Upload source files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Requested-Source-Files
+          path: Requested-Source-Files.zip
+          if-no-files-found: error
+          retention-days: 7
