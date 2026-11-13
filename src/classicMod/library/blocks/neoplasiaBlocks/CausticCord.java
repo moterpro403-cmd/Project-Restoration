@@ -171,66 +171,75 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
+            Tile origin = this.tile;
+            if(origin == null || origin == Vars.emptyTile || Vars.world == null){
+                grow = false;
+                return;
+            }
 
             growRestart++;
             task = (task != 0) ? task : PathfinderExtended.fieldVent;
             Tile next = pathfind(task);
-            if (
-                    passable(next, true)
-            ){
+            if(passable(next, true)){
                 Seq<Tile> nearTiles = new Seq<>(4);
-                for (var d : Geometry.d4) {
+                for(var d : Geometry.d4){
                     Tile dTile = Vars.world.tile(next.x + d.x, next.y + d.y);
-                    int rot = this.tile.relativeTo(dTile);
+                    // A valid path target can still be adjacent to the map edge.
+                    if(dTile == null) continue;
+
+                    int rot = origin.relativeTo(dTile);
+                    if(rot < 0) continue;
                     Tile nearRight = dTile.nearby(Mathf.mod(rot + 1, 4));
                     Tile nearLeft = dTile.nearby(Mathf.mod(rot - 1, 4));
                     Tile nearFront = dTile.nearby(rot);
-                    if (
-                            passable(dTile, true)
-                            && passable(nearRight, false)
-                            && passable(nearLeft, false)
-                            && passable(nearFront, true)
-                            && dTile.relativeTo(this.tile) != -1
-                    ) {
+                    if(passable(dTile, true)
+                        && passable(nearRight, false)
+                        && passable(nearLeft, false)
+                        && passable(nearFront, true)
+                        && dTile.relativeTo(origin) != -1){
                         nearTiles.add(dTile);
                     }
                 }
-                if (nearTiles.size <= 0 && next.relativeTo(this.tile) != -1){
-                    int rot = this.tile.relativeTo(next);
+
+                if(nearTiles.size <= 0 && next.relativeTo(origin) != -1){
+                    int rot = origin.relativeTo(next);
                     Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
                     Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                    if (
-                            passable(next, true)
-                                    && passable(nearRight, false)
-                                    && passable(nearLeft, false)
-                                    && next.relativeTo(this.tile) != -1
-                    ) {
+                    if(passable(next, true)
+                        && passable(nearRight, false)
+                        && passable(nearLeft, false)
+                        && next.relativeTo(origin) != -1){
                         nearTiles.add(next);
                     }
                 }
-                if (nearTiles.size > 0) {
+
+                if(nearTiles.size > 0){
                     Tile nTile = null;
-                    if (task == PathfinderExtended.fieldVent && getClosestVent() != null) {
-                        nearTiles.sort(tile1 -> tile1.dst(getClosestVent()));
-                        nTile = nearTiles.get(0);
+                    Tile closestVent = task == PathfinderExtended.fieldVent ? getClosestVent() : null;
+                    Tile closestOre = task == PathfinderExtended.fieldOres ? getClosestOre() : null;
+                    if(closestVent != null){
+                        nearTiles.sort(tile1 -> tile1.dst(closestVent));
+                        nTile = nearTiles.first();
                     }
-                    if (task == PathfinderExtended.fieldOres && getClosestOre() != null){
-                        nearTiles.sort(tile1 -> tile1.dst(getClosestOre()));
-                        nTile = nearTiles.get(0);
+                    if(closestOre != null){
+                        nearTiles.sort(tile1 -> tile1.dst(closestOre));
+                        nTile = nearTiles.first();
                     }
-                    if (task == Pathfinder.fieldCore && nearTiles.size > 0) {
+                    if(task == Pathfinder.fieldCore){
                         nearTiles.sort(tile1 -> tile1.dst(next));
                         nTile = nearTiles.first();
                     }
-                    if (nTile != null) {
-                        int rot = this.tile.relativeTo(nTile);
-                        if (!CantReplace(nTile.block())) nTile.setBlock(RBlocks.cord, team);
-                        if (nTile.build != null && nTile.build instanceof CordBuild cordBuild) {
-                            cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
+                    if(nTile != null){
+                        int rot = origin.relativeTo(nTile);
+                        if(rot >= 0){
+                            if(!CantReplace(nTile.block())) nTile.setBlock(RBlocks.cord, team);
+                            if(nTile.build instanceof CordBuild cordBuild){
+                                cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
                                     Mathf.randomBoolean(0.5f) ? PathfinderExtended.fieldOres : PathfinderExtended.fieldVent;
-                            cordBuild.facingRot = rot;
-                            cordBuild.prev = this;
-                            growRestart = 0;
+                                cordBuild.facingRot = rot;
+                                cordBuild.prev = this;
+                                growRestart = 0;
+                            }
                         }
                     }
                 }
@@ -266,6 +275,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         @Override
         public void update() {
             super.update();
+            if(tile == null || tile == Vars.emptyTile || Vars.world == null){
+                networkRepairTimer = 0f;
+                return;
+            }
 
             // Reconnect isolated cord components to the nearest Heart-fed branch.
             // Unconnected sections are kept alive by NeoplasmBlock while this runs.
@@ -434,11 +447,22 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         }
 
         public void coverQueue(Block cordPlacement){
-            for (var tile : Queue){
-                if ((tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
-                    tile.setBlock(cordPlacement, team, rotation);
-                    Queue.remove(tile);
+            // Iterate backwards because removal shifts later entries. Discard
+            // stale or obstructed requests instead of retaining them forever.
+            for(int i = Queue.size - 1; i >= 0; i--){
+                Tile queued = Queue.get(i);
+                if(queued == null || Vars.world == null
+                    || Vars.world.tile(queued.x, queued.y) != queued){
+                    Queue.removeIndex(i);
+                    continue;
                 }
+
+                if(queued.build == null){
+                    queued.setBlock(cordPlacement, team, rotation);
+                }
+                // An existing cord already fulfils the request. A different
+                // building blocks it, so this request cannot be fulfilled.
+                Queue.removeIndex(i);
             }
         }
 

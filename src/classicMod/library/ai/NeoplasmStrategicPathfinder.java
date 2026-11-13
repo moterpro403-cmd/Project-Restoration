@@ -47,9 +47,36 @@ public final class NeoplasmStrategicPathfinder {
         PathfinderCustom.Flowfield base = RVars.pathfinderCustom.getField(team, costType, pathTarget);
         if(base == null || !base.initialized || !base.hasTargets() || base.resolution != 1) return null;
 
+        // Do not build an expensive full-map Dijkstra field for units moving
+        // through safe terrain. Build/share one only when a turret or remembered
+        // death is affecting the current tile or one of its immediate exits.
+        if(!hasLocalThreat(current, team, Vars.world.width(), Vars.world.height())) return null;
+
         long key = key(team, costType, pathTarget, false, false);
         RouteField route = getOrBuild(key, team, base, null, false);
         return chooseNext(current, team, base, route, unitId);
+    }
+
+    private static final float localHeatThreshold = 2f;
+    private static final float localTurretThreshold = 1f;
+
+    private static boolean hasLocalThreat(Tile current, Team team, int width, int height){
+        if(current == null || team == null || Vars.world == null) return false;
+        float[] turret = getThreatField(team, width, height).risk;
+
+        for(int dy = -1; dy <= 1; dy++){
+            for(int dx = -1; dx <= 1; dx++){
+                Tile tile = Vars.world.tile(current.x + dx, current.y + dy);
+                if(tile == null) continue;
+                int index = tile.array();
+                if(index < 0 || index >= turret.length) continue;
+                if(turret[index] >= localTurretThreshold
+                    || NeoplasmDeathHeatmap.getHeat(team, tile) >= localHeatThreshold){
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Route to a specific building, used by direct-movement flying AI. */
