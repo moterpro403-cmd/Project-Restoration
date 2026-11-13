@@ -76,6 +76,15 @@ public class CausticHeart extends NeoplasmBlock {
                 }
             }
 
+            // Keep one Matte carrier available per team to rescue and relocate stuck blobs.
+            if (!Vars.net.client() && team.data().countType(RUnitTypes.matte) < 1 && !RUnitTypes.matte.isBanned()) {
+                Unit matteUnit = RUnitTypes.matte.create(team);
+                matteUnit.set(this);
+                matteUnit.rotation(90f);
+                matteUnit.add();
+                Fx.neoplasiaSmoke.at(this.x, this.y);
+            }
+
             super.updateBeat();
         }
 
