@@ -1,6 +1,8 @@
 package classicMod.library.blocks.neoplasiaBlocks;
 
 import arc.Events;
+import arc.math.geom.Geometry;
+import arc.math.geom.Point2;
 import arc.struct.Seq;
 import arc.util.Time;
 import classicMod.content.RBlocks;
@@ -26,7 +28,10 @@ import java.util.HashSet;
  * the cost predictable on Android.
  */
 public final class NeoplasmCordNetwork {
-    private static final float scanInterval = 300f;
+    private static final float scanInterval = 120f;
+    private static final float pressureAttenuation = 0.985f;
+    public static final int maxVascularHops = 180;
+    public static final float minGrowthPressure = 0.12f;
     private static final int teamSlots = 256;
 
     private static boolean[][] connectedTiles = new boolean[teamSlots][];
@@ -41,6 +46,7 @@ public final class NeoplasmCordNetwork {
     private static final ArrayDeque<RepairRequest> pendingRepairs = new ArrayDeque<>();
     private static final HashSet<Long> repairKeys = new HashSet<>();
     private static final Seq<Building> scanQueue = new Seq<>();
+    private static final Seq<CausticCord.CordBuild> pressureQueue = new Seq<>();
     private static final int maxRepairDiameter = 65;
     private static final int maxRepairCells = maxRepairDiameter * maxRepairDiameter;
     private static final int[] repairParent = new int[maxRepairCells];
@@ -137,8 +143,74 @@ public final class NeoplasmCordNetwork {
                 }
             }
         }
+        updateVascularPressure();
         NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_CORD_SCAN, scanStart);
 
+    }
+
+    /** Propagate Heart output through adjacent cord veins; no team-wide growth cap is applied. */
+    private static void updateVascularPressure(){
+        if(Vars.world == null) return;
+        Seq<CausticCord.CordBuild> queue = pressureQueue;
+        queue.clear();
+
+        // Pressure and distance are derived state; rebuild them from live Heart roots.
+        for(Tile tile : Vars.world.tiles){
+            if(tile.build instanceof CausticCord.CordBuild cord){
+                cord.connected = false;
+                cord.hopDistance = Integer.MAX_VALUE;
+                cord.vascularPressure = 0f;
+            }
+        }
+
+        // Multi-source seed: every active Heart feeds all cord segments touching its perimeter.
+        for(Tile tile : Vars.world.tiles){
+            if(!(tile.build instanceof CausticHeart.HeartBuilding heart)
+                || !heart.isValid() || heart.team == null) continue;
+            float sourcePressure = heart.outputPressure();
+            if(sourcePressure <= 0.01f) continue;
+
+            for(Building neighbor : heart.proximity){
+                if(!(neighbor instanceof CausticCord.CordBuild cord)
+                    || !cord.isValid() || cord.team != heart.team) continue;
+                float pressure = sourcePressure * pressureAttenuation;
+                if(pressure > cord.vascularPressure + 0.001f){
+                    cord.connected = pressure >= minGrowthPressure;
+                    cord.hopDistance = 1;
+                    cord.vascularPressure = pressure;
+                    if(cord.connected) queue.add(cord);
+                }
+            }
+        }
+
+        // Equal attenuation per segment means the strongest/shortest viable path wins.
+        int cursor = 0;
+        while(cursor < queue.size){
+            CausticCord.CordBuild current = queue.get(cursor++);
+            if(current == null || !current.isValid() || !current.connected
+                || current.tile == null || current.hopDistance >= maxVascularHops) continue;
+
+            float nextPressure = current.vascularPressure * pressureAttenuation;
+            if(nextPressure < minGrowthPressure) continue;
+            int nextHop = current.hopDistance + 1;
+
+            for(Point2 direction : Geometry.d4){
+                Tile nextTile = Vars.world.tile(current.tile.x + direction.x, current.tile.y + direction.y);
+                if(nextTile == null || !(nextTile.build instanceof CausticCord.CordBuild next)
+                    || next.team != current.team) continue;
+
+                if(nextPressure > next.vascularPressure + 0.001f){
+                    next.connected = true;
+                    next.hopDistance = Math.min(next.hopDistance, nextHop);
+                    next.vascularPressure = nextPressure;
+                    queue.add(next);
+                }
+            }
+        }
+
+        for(Tile tile : Vars.world.tiles){
+            if(tile.build instanceof CausticCord.CordBuild cord) cord.refreshConnections();
+        }
     }
 
     /** Queue a repair request; actual path searches are globally throttled. */
