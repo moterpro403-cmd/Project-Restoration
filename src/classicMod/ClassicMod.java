@@ -20,7 +20,6 @@ import classicMod.library.ui.menu.*;
 import classicMod.library.unitType.unit.JumpingUnit;
 import mindustry.Vars;
 import mindustry.ai.types.*;
-import mindustry.entities.units.AIController;
 import mindustry.game.EventType;
 import mindustry.game.EventType.ClientLoadEvent;
 import mindustry.gen.*;
@@ -453,8 +452,6 @@ public class ClassicMod extends Mod {
         new RSerpuloTechTree().load();
         new ExtendedErekirTechTree().load();
 
-        NeoplasmDeathMemory.load();
-
         PathfinderExtended.preloadAddons();
         PathfinderExtended.addonFieldTypes();
 
@@ -468,18 +465,9 @@ public class ClassicMod extends Mod {
 
                 var originalController = type.controller;
 
-                // Decorate Neoplasm AI at runtime. The assigned FlyingAI, GroundAI,
-                // HugAI, SuicideBomberAI, SteamHugAI, etc. remain the actual AI logic.
-                if (type instanceof NeoplasmUnitType) {
-                    type.controller = unit -> {
-                        var controller = originalController.get(unit);
-                        if (controller instanceof AIController ai) {
-                            return new NeoplasmDeathAvoidanceAI(ai);
-                        }
-                        return controller;
-                    };
-                    continue;
-                }
+                // Keep Neoplasm controller factories untouched, as in the PC source.
+                // Their own NeoplasmAIController handles death-aware pathfinding.
+                if (type instanceof NeoplasmUnitType) continue;
 
                 type.controller = unit -> {
                     var controller = originalController.get(unit);

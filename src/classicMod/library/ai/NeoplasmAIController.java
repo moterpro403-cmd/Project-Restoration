@@ -3,9 +3,11 @@ package classicMod.library.ai;
 import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
+import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.*;
 import classicMod.content.RVars;
+import classicMod.library.GeometryPlus;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
 import mindustry.ai.Pathfinder;
@@ -26,10 +28,45 @@ public class NeoplasmAIController extends AIController {
     private Tile currentSafeTarget = null;
     private float rerouteCooldown = 0f; // Time left before recomputing a new safe tile
 
+    // Use ObjectSet for fast lookup
+    public ObjectSet<Unit> knownNeoplasms = new ObjectSet<>();
+    public Seq<Unit> neoplasmGroup = new Seq<>();
+
     @Override
     public void updateUnit() {
-        // All Neoplasm controllers on the same team share one death-memory map.
-        DodgeTile = NeoplasmDeathMemory.dodgeTiles(unit.team);
+        // Look for nearby untracked neoplasms
+        Unit neo = Units.closest(unit.team, unit.x, unit.y, u ->
+                u.controller() instanceof NeoplasmAIController &&
+                        !knownNeoplasms.contains(u) &&
+                        u != this.unit
+        );
+
+        if (neo != null) {
+            knownNeoplasms.add(neo);
+            neoplasmGroup.add(neo);
+        }
+
+        Seq<Unit> toRemove = new Seq<>();
+
+        for (var neoplasm : neoplasmGroup) {
+            if (neoplasm == null || !neoplasm.dead) continue;
+
+            Tile deadTile = neoplasm.tileOn();
+            if (deadTile != null && neoplasm.controller() instanceof NeoplasmAIController ai && !ai.ignore) {
+                // Add central and surrounding tiles if not already in DodgeTile
+                for (var point : GeometryPlus.d8plus) { // includes center + 8 surrounding
+                    Tile t = Vars.world.tile(deadTile.x + point.x, deadTile.y + point.y);
+                    if (t != null) DodgeTile.addUnique(t);
+                }
+            }
+
+            // Remove from group tracking
+            toRemove.add(neoplasm);
+            knownNeoplasms.remove(neoplasm);
+        }
+
+        neoplasmGroup.removeAll(toRemove);
+
 
         if (rerouteCooldown > 0) rerouteCooldown -= Time.delta;
         super.updateUnit();
@@ -54,7 +91,7 @@ public class NeoplasmAIController extends AIController {
 
     public Tile closestDanger(){
         if (DodgeTile.size <= 0 || DodgeTile.isEmpty()) return null;
-        return Geometry.findClosest(this.unit.x, this.unit.y, DodgeTile);
+        return DodgeTile.copy().sort(tile1 -> tile1.dst(this.unit)).get(0);
     }
 
     public Tile getClosestTarget(int range, Tile closestDanger, Tile targetTile, Unit unit){
@@ -157,7 +194,10 @@ public class NeoplasmAIController extends AIController {
                     targetTile = getEdgeEscapeTile();
                 }
 
-                // Shared death-memory entries remain until the next world reset.
+                // Optional: remove the danger if no alternative found
+                if (targetTile == null) {
+                    DodgeTile.remove(nearDanger);
+                }
             }
         }
 
