@@ -171,6 +171,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
+            if (!NeoplasmGrowthLimiter.allowExpansion(team)) {
+                grow = false;
+                return;
+            }
             Tile origin = this.tile;
             if(origin == null || origin == Vars.emptyTile || Vars.world == null){
                 grow = false;
@@ -343,7 +347,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         left() == null &&
                         right() == null)
                         ||
-                                (getTotal(Items.beryllium, 3) >= 3)
+                                (getTotal(Items.beryllium, 3) >= 5)
                 ){
                     if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.walkySpawner);
@@ -356,7 +360,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         left() == null &&
                         right() == null)
                         ||
-                                ((getTotal(Items.graphite, 3) >= 3))
+                                ((getTotal(Items.graphite, 3) >= 5))
 
                 ){
                     if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
@@ -370,7 +374,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         left() == null &&
                         right() == null)
                         ||
-                                ((getTotal(Items.oxide, 3) >= 3))
+                                ((getTotal(Items.oxide, 3) >= 5))
                 ){
 
                     if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);

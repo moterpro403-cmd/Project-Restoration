@@ -32,7 +32,7 @@ public class CausticHeart extends NeoplasmBlock {
         flags = EnumSet.of(BlockFlag.core);
         unitCapModifier = 10;
         itemCapacity = 10;
-        unitCap = 50;
+        unitCap = 8;
     }
 
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
@@ -55,7 +55,9 @@ public class CausticHeart extends NeoplasmBlock {
         }
 
         public boolean canCreate(Team team, UnitType type) {
-            return team.data().countType(type) < unitCap && !type.isBanned();
+            return team.data().countType(type) < unitCap
+                && NeoplasmPopulation.canSpawn(team, type)
+                && !type.isBanned();
         }
 
         @Override

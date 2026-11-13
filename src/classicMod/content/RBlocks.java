@@ -1112,7 +1112,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = UnitTypes.renale;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
-            spawnTime = 120f;
+            spawnTime = 210f;
         }};
 
         muleSpawner = new CausticSpawner("mule-spawner"){{
@@ -1125,7 +1125,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = RUnitTypes.mule;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         squidSpawner = new CausticSpawner("neoplasm-squid-spawner"){{
@@ -1138,7 +1138,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
             spawn = RUnitTypes.squid;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         walkySpawner = new CausticSpawner("neoplasm-immitis-arc-pod"){{
@@ -1152,7 +1152,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
             spawn = RUnitTypes.miserable;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         hydroBomberSpawner = new CausticSpawner("neoplasm-immitis-hydro-pod"){{
@@ -1166,7 +1166,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.hydrogen.color;
             spawn = RUnitTypes.hydroBomber;
-            spawnTime = 60f;
+            spawnTime = 210f;
         }};
 
 
@@ -1182,7 +1182,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = RUnitTypes.siegeCrawler;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
-            spawnTime = 120f;
+            spawnTime = 240f;
         }};
 
         sporeCarrierSpawner = new CausticSpawner("spore-carrier-spawner"){{
@@ -1194,7 +1194,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = RUnitTypes.sporeCarrier;
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
-            spawnTime = 100f;
+            spawnTime = 210f;
         }};
 
         neoplasiaBomb = new CausticMine("Neoplasia-Bomb"){{

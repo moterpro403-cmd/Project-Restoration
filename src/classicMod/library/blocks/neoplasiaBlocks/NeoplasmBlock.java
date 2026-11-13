@@ -238,6 +238,10 @@ public class NeoplasmBlock extends Block {
         }
 
                 public void growCord(Block block){
+            if (!NeoplasmGrowthLimiter.allowExpansion(team)) {
+                grow = false;
+                return;
+            }
             if (!isCord){
                 if (proximityTiles.isEmpty()) {
                     grow = false;
