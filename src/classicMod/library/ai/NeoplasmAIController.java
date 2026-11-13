@@ -15,9 +15,37 @@ public class NeoplasmAIController extends AIController {
     public boolean update;
     public boolean ignore;
 
-    /** Initialize the shared death listener once. */
+    // Short per-unit history prevents repeatedly reversing between the same tiles.
+    private final int[] recentTiles = new int[16];
+    private int recentTileCursor;
+    private int recentTileCount;
+    private int lastRecordedTile = -1;
+
+    /** Initialize the shared death listener and record this unit's recent route. */
     public void updateNeoplasmTracking() {
         NeoplasmDeathHeatmap.init();
+        if (unit == null) return;
+
+        Tile current = unit.tileOn();
+        if (current == null) return;
+        int index = current.array();
+        if (index == lastRecordedTile) return;
+
+        recentTiles[recentTileCursor] = index;
+        recentTileCursor = (recentTileCursor + 1) % recentTiles.length;
+        recentTileCount = Math.min(recentTileCount + 1, recentTiles.length);
+        lastRecordedTile = index;
+    }
+
+    /** Penalty for revisiting a recently crossed tile; newest visits cost most. */
+    private float revisitPenalty(Tile tile) {
+        if (tile == null) return 0f;
+        int index = tile.array();
+        for (int age = 0; age < recentTileCount; age++) {
+            int position = (recentTileCursor - 1 - age + recentTiles.length) % recentTiles.length;
+            if (recentTiles[position] == index) return 20f - age * 0.75f;
+        }
+        return 0f;
     }
 
     @Nullable
@@ -57,8 +85,10 @@ public class NeoplasmAIController extends AIController {
     }
 
     /**
-     * Select a passable neighbor that advances the flowfield while minimizing
-     * the shared heat penalty. The field is team-wide, not per controller.
+     * Choose a nearby flowfield step using destination cost + shared heat +
+     * recent-visit penalty. Unlike strict downhill-only routing, this permits
+     * a short uphill step to get around a hot patch. Recent tiles are penalized
+     * so the unit does not bounce back and forth between the same two tiles.
      */
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
@@ -69,16 +99,22 @@ public class NeoplasmAIController extends AIController {
 
         int[] weights = field.hasComplete ? field.completeWeights : field.weights;
         int current = tile.array();
-        if (current < 0 || current >= weights.length) return null;
+        if (current < 0 || current >= weights.length || weights[current] < 0) return null;
 
+        int currentWeight = weights[current];
+        float currentHeat = dangerDistance(tile);
         Tile best = null;
         float bestScore = Float.MAX_VALUE;
+        Tile normalNext = null;
+        int normalWeight = Integer.MAX_VALUE;
+        float normalScore = Float.MAX_VALUE;
+
         for (Point2 offset : Geometry.d8) {
             Tile candidate = Vars.world.tile(tile.x + offset.x, tile.y + offset.y);
             if (candidate == null) continue;
+
             int index = candidate.array();
             if (index < 0 || index >= weights.length || !field.passable(index)) continue;
-
             if (offset.x != 0 && offset.y != 0) {
                 Tile horizontal = Vars.world.tile(tile.x + offset.x, tile.y);
                 Tile vertical = Vars.world.tile(tile.x, tile.y + offset.y);
@@ -87,26 +123,62 @@ public class NeoplasmAIController extends AIController {
             }
 
             int progress = weights[index];
-            if (progress < 0 || progress >= weights[current]) continue;
+            if (progress < 0) continue;
 
-            float score = progress + dangerDistance(candidate) * NeoplasmDeathHeatmap.pathHeatWeight;
+            // Allow a bounded temporary increase in path cost for a real detour.
+            if (progress > currentWeight + 72 && currentHeat < 25f) continue;
+
+            float heat = dangerDistance(candidate);
+            float score = progress
+                + heat * NeoplasmDeathHeatmap.pathHeatWeight
+                + revisitPenalty(candidate);
+
+            if (progress < normalWeight) {
+                normalWeight = progress;
+                normalNext = candidate;
+                normalScore = progress
+                    + heat * NeoplasmDeathHeatmap.pathHeatWeight
+                    + revisitPenalty(candidate);
+            }
+
             if (score < bestScore) {
                 bestScore = score;
                 best = candidate;
             }
         }
 
-        return dangerDistance(tile) >= 2f ? best : null;
+        if (best == null || normalNext == null) return null;
+
+        // Do nothing when neither the current tile nor the normal next tile is hot.
+        float normalHeat = dangerDistance(normalNext);
+        if (currentHeat < 2f && normalHeat < 2f) return null;
+
+        // Compare the safer option against both staying on course and escaping
+        // the current hot tile. Strong heat can justify a bounded uphill detour.
+        float currentScore = currentWeight
+            + currentHeat * NeoplasmDeathHeatmap.pathHeatWeight;
+        float baseline = Math.min(normalScore, currentScore);
+        if (bestScore + 0.5f < baseline) return best;
+
+        // When already deep inside a hot zone, take the least-cost valid escape
+        // step even if it temporarily moves away from the destination.
+        if (currentHeat >= 25f && dangerDistance(best) < currentHeat
+            && revisitPenalty(best) < 20f) return best;
+
+        return null;
     }
 
-    /** Soft detour for direct-movement flying and Hug-style units. */
+    /** Soft local detour for direct-movement flying and Hug-style units. */
     protected boolean avoidNearbyDanger(Tile destination) {
         if (destination == null || unit == null) return false;
         Tile current = unit.tileOn();
-        if (current == null || dangerDistance(current) < 2f) return false;
+        if (current == null) return false;
 
         Tile best = null;
         float bestScore = Float.MAX_VALUE;
+        Tile normalNext = null;
+        float normalScore = Float.MAX_VALUE;
+
         for (Point2 offset : Geometry.d8) {
             Tile candidate = Vars.world.tile(current.x + offset.x, current.y + offset.y);
             if (candidate == null || !unit.canPass(candidate.x, candidate.y)) continue;
@@ -114,18 +186,33 @@ public class NeoplasmAIController extends AIController {
                 && (!unit.canPass(current.x + offset.x, current.y)
                 || !unit.canPass(current.x, current.y + offset.y))) continue;
 
+            float heat = dangerDistance(candidate);
             float score = candidate.dst(destination)
-                + dangerDistance(candidate) * NeoplasmDeathHeatmap.directHeatWeight;
+                + heat * NeoplasmDeathHeatmap.directHeatWeight
+                + revisitPenalty(candidate);
+
             if (score < bestScore) {
                 bestScore = score;
                 best = candidate;
             }
+            if (candidate.dst(destination) < (normalNext == null ? Float.MAX_VALUE : normalNext.dst(destination))) {
+                normalNext = candidate;
+                normalScore = score;
+            }
         }
 
-        if (best == null) return false;
-        float currentScore = current.dst(destination)
-            + dangerDistance(current) * NeoplasmDeathHeatmap.directHeatWeight;
-        if (bestScore >= currentScore) return false;
+        if (best == null || normalNext == null) return false;
+        float currentHeat = dangerDistance(current);
+        float normalHeat = dangerDistance(normalNext);
+        if (currentHeat < 2f && normalHeat < 2f) return false;
+
+        float baseline = Math.min(normalScore,
+            current.dst(destination) + currentHeat * NeoplasmDeathHeatmap.directHeatWeight);
+        if (bestScore + 0.5f >= baseline && currentHeat < 25f) return false;
+
+        if (best == normalNext && currentHeat < 25f) return false;
+        if (currentHeat >= 25f && dangerDistance(best) >= currentHeat
+            && revisitPenalty(best) >= 20f) return false;
 
         unit.movePref(vec.set(best.worldx(), best.worldy()).sub(unit).limit(unit.speed()));
         return true;
