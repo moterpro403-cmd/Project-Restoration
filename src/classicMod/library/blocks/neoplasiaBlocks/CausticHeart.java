@@ -61,7 +61,7 @@ public class CausticHeart extends NeoplasmBlock {
         @Override
         public void updateBeat() {
 
-            if (Mathf.chance(0.10) && getClosestVent() != null){
+            if (Mathf.chance(0.05) && getClosestVent() != null){
                 if (!Vars.net.client() && canCreate(team, unitType)) {
                     unit = unitType.create(team);
                     unit.set(this);
