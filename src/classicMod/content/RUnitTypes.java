@@ -79,7 +79,7 @@ public class RUnitTypes {
             {
                 flying = true;
                 constructor = UnitEntity::create;
-                aiController = NeoplasmFlyingAI::new;
+                aiController = FlyingAI::new;
                 playerControllable = false;
                 accel = 0.64f * 2f;
                 speed = 1f;
@@ -186,7 +186,7 @@ public class RUnitTypes {
 
         miserable = new NeoplasmUnitType("walky"){{
             constructor = LegsUnit::create;
-            aiController = NeoplasmHugAI::new;
+            aiController = GroundAI::new;
             playerControllable = false;
             drag = 0.1f;
             speed = 1f;
@@ -280,7 +280,7 @@ public class RUnitTypes {
 
         kalyx = new NeoplasmUnitType("kalyx"){{
             constructor = UnitEntity::create;
-            aiController = NeoplasmFlyingAI::new;
+            aiController = FlyingAI::new;
             playerControllable = false;
             //smokeTrail = Fx.neoplasiaSmoke;
 
@@ -345,7 +345,7 @@ public class RUnitTypes {
             speed = 1.2f;
 
             drawBody = false;
-            aiController = NeoplasmHugAI::new;
+            aiController = HugAI::new;
             playerControllable = false;
         }};
 
@@ -368,7 +368,7 @@ public class RUnitTypes {
             speed = 1.15f;
 
             drawBody = false;
-            aiController = NeoplasmHugAI::new;
+            aiController = HugAI::new;
             playerControllable = false;
         }};
 
@@ -381,7 +381,6 @@ public class RUnitTypes {
                 accel = 0.15f;
                 drag = 0.06f;
                 flying = true;
-                aiController = NeoplasmFlyingAI::new;
                 playerControllable = false;
                 health = 70;
                 engineOffset = 5.75f;
