@@ -13,6 +13,7 @@ import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.entities.Puddles;
 import mindustry.game.EventType;
+import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.type.Liquid;
 import mindustry.world.*;
@@ -22,6 +23,9 @@ import mindustry.world.meta.Attribute;
 import static classicMod.content.RVars.CordCanDrill;
 
 public class NeoplasmBlock extends Block {
+
+    // Reuse the tint to avoid allocating a Color for every visible cord each frame.
+    private static final Color beatDrawColor = new Color(1f, 1f, 1f, 1f);
 
     public boolean source = false;
     public Color beatColor = Color.valueOf("cd6240");
@@ -79,7 +83,7 @@ public class NeoplasmBlock extends Block {
             float xs = (xscl > 0) ? xscl + ((beat - 1f) * offsetSclBeat) : xscl - ((beat - 1f) * offsetSclBeat);
             float ys = (yscl > 0) ? yscl + ((beat - 1f) * offsetSclBeat) : yscl - ((beat - 1f) * offsetSclBeat);
             Draw.scl(xs, ys);
-            Draw.color(new Color(1.0F, 1.0F, 1.0F, 1.0F).lerp(beatColor, (beat - 1)));
+            Draw.color(beatDrawColor.set(1f, 1f, 1f, 1f).lerp(beatColor, beat - 1f));
         }
 
         public NeoplasmBuilding getNeoplasm(Building building){
@@ -109,7 +113,23 @@ public class NeoplasmBlock extends Block {
         }
 
         public boolean passable(Tile tile, boolean checkWall){
-            return passable(tile, checkWall, false);
+            if (tile == null) return false;
+
+            Block block = tile.block();
+            if (block == null) return false;
+            if (tile.floor() != null && tile.floor().liquidDrop != null) return false;
+
+            return !(
+                            (block instanceof StaticWall && checkWall && block.itemDrop == null) ||
+                            block == pipe
+                    )
+                    && (
+                            block == Blocks.air
+                            || block instanceof SteamVent
+                            || block instanceof Prop
+                            || block instanceof NeoplasmBlock
+                    )
+            ;
         }
 
         public boolean passable(Tile tile, boolean checkWall, boolean checkOre){
@@ -140,12 +160,19 @@ public class NeoplasmBlock extends Block {
         }
 
         public void coverVent(Block replacmentBlock, Block cordPlacement){
+            // Buildings can be removed or replaced during an update. Never dereference
+            // a missing tile/floor while the cord is finishing its growth tick.
+            Tile origin = this.tile;
+            if (origin == null || origin == Vars.emptyTile || origin.floor() == null) return;
+
             float steam = 0;
-            if (this.tile.floor().attributes.get(Attribute.steam) >= 1) {
+            if (origin.floor().attributes.get(Attribute.steam) >= 1) {
                 for (int dy = -1; dy < 2; dy++) {
                     for (int dx = -1; dx < 2; dx++) {
-                        Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
-                        if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                        Tile tile = Vars.world.tile(origin.x + dx, origin.y + dy);
+                        // A vent near the map edge may have neighbors outside the world.
+                        if (tile != null && tile.floor() != null
+                            && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
                             steam += tile.floor().attributes.get(Attribute.steam);
                             if (tile.floor().attributes.get(Attribute.steam) >= 1) {
                                 if (tile.build == null) tile.setBlock(cordPlacement, team, rotation);
@@ -155,8 +182,8 @@ public class NeoplasmBlock extends Block {
                 }
             }
             if (steam >= 9f){
-                Tile replacement = Vars.world.tile(this.tile.x, this.tile.y);
-                replacement.setBlock(replacmentBlock, team, rotation);
+                Tile replacement = Vars.world.tile(origin.x, origin.y);
+                if (replacement != null) replacement.setBlock(replacmentBlock, team, rotation);
             }
         }
 
@@ -165,7 +192,8 @@ public class NeoplasmBlock extends Block {
             for (int dy = (2 - size); dy < 2; dy++) {
                 for (int dx = (2 - size); dx < 2; dx++) {
                     Tile tile = Vars.world.tile(tileX + dx, tileY + dy);
-                    if (tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                    if (tile != null && tile.floor() != null
+                        && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
                         spaceAvaliable += 1;
                     }
                 }
@@ -196,8 +224,9 @@ public class NeoplasmBlock extends Block {
                 for (int dy = 0; dy < 2; dy++) {
                     for (int dx = 0; dx < 2; dx++) {
                         Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
-                        if (tile != null && tile.floor() != null && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
-                            ore += (tile.drop() != null && CordCanDrill.contains(tile.drop())) ? 1 : 0;
+                        if (tile != null && tile.floor() != null
+                            && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                            ore += (tile.drop() != null) ? 1 : 0;
                         }
                     }
                 }
@@ -208,12 +237,20 @@ public class NeoplasmBlock extends Block {
             }
         }
 
-        public void growCord(Block block){
+                public void growCord(Block block){
+            if (!isCord && !NeoplasmGrowthLimiter.allowExpansion(team)) {
+                grow = false;
+                return;
+            }
             if (!isCord){
-                int rand = Mathf.random(0, proximityTiles.size);
-                Tile tile = proximityTiles.get(rand % proximityTiles.size);
+                if (proximityTiles.isEmpty()) {
+                    grow = false;
+                    return;
+                }
+                int rand = Mathf.random(proximityTiles.size - 1);
+                Tile tile = proximityTiles.get(rand);
                 if (tile != null) {
-                    if (tile.build == null && passable(tile, true, true)) {
+                    if (tile.build == null && passable(tile, true)) {
                         tile.setBlock(block, team);
                         if (tile.build != null && tile.build instanceof CausticCord.CordBuild cordBuild) {
                             cordBuild.facingRot = cordBuild.relativeTo(this.tile);
@@ -247,7 +284,10 @@ public class NeoplasmBlock extends Block {
         }
 
         public boolean deathImminent(){
-            return previousBeat >= 600f;
+            // Cords can form very long chains. Give the pulse more time to propagate
+            // across the transport network before considering a cord abandoned.
+            float timeout = block instanceof CausticCord ? 3600f : 600f;
+            return previousBeat >= timeout;
         }
 
         public void death(){
@@ -330,15 +370,22 @@ public class NeoplasmBlock extends Block {
         }
 
         public void takeBlood(){
-            for(int i = 0; i <proximity.size; ++i) {
-                Building other = proximity.get((i) % proximity.size);
-                if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                    if (!source && !neoplasmBuilding.deathImminent() && liquids.get(blood) < liquidCapacity) {
-                        float amount = Math.min(liquidCapacity, neoplasmBuilding.liquids.get(blood));
-                        neoplasmBuilding.liquids.remove(blood, amount);
-                        liquids.add(blood, amount);
-                    }
-                }
+            if(source || liquids.get(blood) >= liquidCapacity) return;
+
+            for(int i = 0; i < proximity.size; ++i) {
+                Building other = proximity.get(i);
+                if(!(other instanceof NeoplasmBuilding neoplasmBuilding)
+                    || neoplasmBuilding.team != team || neoplasmBuilding.deathImminent()) continue;
+
+                // Clamp transfer to both the donor's available blood and this
+                // building's remaining capacity. Never siphon from enemy tissue.
+                float freeCapacity = Math.max(0f, liquidCapacity - liquids.get(blood));
+                float amount = Math.min(freeCapacity, neoplasmBuilding.liquids.get(blood));
+                if(amount <= 0f) continue;
+
+                neoplasmBuilding.liquids.remove(blood, amount);
+                liquids.add(blood, amount);
+                if(liquids.get(blood) >= liquidCapacity) break;
             }
         }
 
@@ -349,6 +396,14 @@ public class NeoplasmBlock extends Block {
         @Override
         public void update() {
 
+            // Cords are maintained by the network manager, not by fragile visual
+            // pulse timing. Keep all mature cord segments alive; disconnected ones
+            // are actively repaired by CordBuild instead of exploding.
+            if (this instanceof CausticCord.CordBuild && grown) {
+                previousBeat = 0f;
+                deathTimer = 0f;
+            }
+
             takeBlood();
             timer += delta();
             previousBeat += delta();
@@ -357,11 +412,17 @@ public class NeoplasmBlock extends Block {
                 //liquids.remove(blood, drain); //TODO something
             }
 
-
+            if (!source){
+                liquidPressure -= delta() / 100;
+                for(int i = 0; i <proximity.size; ++i) {
+                    Building other = proximity.get((i) % proximity.size);
+                    if (other instanceof NeoplasmBuilding) {
+                        liquidPressure = other.block.liquidPressure;
+                    }
+                }
+            }
 
             if (grown) {
-
-
                 if (deathImminent()) deathTimer += delta();
                 else deathTimer = 0;
                 if (deathTimer >= 5) death();
@@ -369,9 +430,15 @@ public class NeoplasmBlock extends Block {
                 for(int i = 0; i <proximity.size; ++i) {
                     Building other = proximity.get((i) % proximity.size);
                     if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                        if (neoplasmBuilding.beat >= 1.2f && !source && !alreadyBeat && !neoplasmBuilding.deathImminent() && isGrown() && neoplasmBuilding.isGrown()) {
-                            ready = true;
-                            grow = true;
+                        if (neoplasmBuilding.beat >= 1.2f && !source && !neoplasmBuilding.deathImminent()) {
+                            // Hearing a healthy neighbor's pulse confirms this segment is
+                            // still connected. Refresh its life timer even during beat cooldown.
+                            previousBeat = 0f;
+                            deathTimer = 0f;
+                            if (!alreadyBeat) {
+                                ready = true;
+                                grow = true;
+                            }
                         }
                     }
                 }
@@ -393,22 +460,21 @@ public class NeoplasmBlock extends Block {
                         beatTimer = 0;
                     }
                 }
-                if (ready || alreadyBeat && !source) beatTimer += delta() / 1.5f;
+                if (ready || alreadyBeat && !source) beatTimer += delta();
 
                 if (beat > 1.05f) {
-                    beat -= delta() / 10;
+                    beat = Mathf.lerpDelta(beat, 1f, 0.1f);
                 } else {
                     if (beat > 1) {
                         updateAfterBeat();
                         beat = 1;
                     }
-                    if (beat < 1){
-                        beat = 1;
-                    }
                 }
 
             } else {
-                if ((this.tile.floor().attributes.get(Attribute.steam) >= 1 || tile.drop() != null) && this instanceof CausticCord.CordBuild) {
+                if (this.tile != null && this.tile != Vars.emptyTile && this.tile.floor() != null
+                    && (this.tile.floor().attributes.get(Attribute.steam) >= 1 || tile.drop() != null)
+                    && this instanceof CausticCord.CordBuild) {
                     if (isCord && tile.drop() != null) coverOre(drill);
                     if (isCord && this.tile.floor().attributes.get(Attribute.steam) >= 1) coverVent(core, pipe);
                 }

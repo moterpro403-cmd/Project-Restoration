@@ -1,82 +1,119 @@
 package classicMod.library.ai;
 
-import arc.math.*;
-import mindustry.game.Team;
-import mindustry.gen.*;
-import mindustry.world.meta.*;
+import arc.math.Mathf;
+import arc.math.Rand;
+import mindustry.ai.types.FlyingAI;
+import mindustry.gen.Building;
+import mindustry.gen.Teamc;
+import mindustry.gen.Unit;
+import mindustry.world.Tile;
+import mindustry.world.meta.BlockFlag;
 
 import static mindustry.Vars.*;
 import static mindustry.world.meta.BlockFlag.*;
 
-public class NeoplasmFlyingAI extends NeoplasmAIController {
-    final static Rand rand = new Rand();
-    final static BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
+/**
+ * FlyingAI with map-wide Neoplasm strategic routing and chokepoint avoidance.
+ * Suicide bombers are automatically excluded so they charge straight into targets.
+ */
+public class NeoplasmFlyingAI extends FlyingAI {
+    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    private static final Rand rand = new Rand();
+    private static final BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
+
+    public boolean isIgnoringDeathHeat() {
+        return deathMemory.ignoreDeathHeat;
+    }
+
+    public void setIgnoreDeathHeat(boolean ignore) {
+        deathMemory.ignoreDeathHeat = ignore;
+    }
 
     @Override
-    public void updateMovement(){
+    public void updateUnit() {
+        deathMemory.unit(unit);
+        deathMemory.updateNeoplasmTracking();
+        super.updateUnit();
+    }
+
+    @Override
+    public Teamc findTarget(float x, float y, float range, boolean air, boolean ground) {
+        var local = target(x, y, range, air, ground);
+        if (local != null) return local;
+
+        return findMainTarget(x, y, range, air, ground);
+    }
+
+    @Override
+    public Teamc findMainTarget(float x, float y, float range, boolean air, boolean ground) {
+        var enemyCore = targetFlag(x, y, BlockFlag.core, true);
+        if (enemyCore != null && Mathf.within(x, y, enemyCore.getX(), enemyCore.getY(), range)) {
+            return enemyCore;
+        }
+
+        if (state.rules.randomWaveAI) {
+            rand.setSeed(unit.type.id + (state.rules.waves ? state.wave : unit.id));
+            for (int attempt = 0; attempt < 5; attempt++) {
+                Teamc result = targetFlagActive(x, y, randomTargets[rand.random(randomTargets.length - 1)], true);
+                if (result != null) return result;
+            }
+        } else {
+            for (var flag : unit.type.targetFlags) {
+                if (flag != null && ground) {
+                    Teamc result = targetFlagActive(x, y, flag, true);
+                    if (result != null) return result;
+                }
+            }
+        }
+        return enemyCore;
+    }
+
+    @Override
+    public void updateMovement() {
         unloadPayloads();
 
-        if(target != null && unit.hasWeapons()){
-            if(unit.type.circleTarget){
-                circleAttack(120f);
-            }else{
-                routeAir();
-                //moveTo(target, unit.type.range * 0.8f);
+        if (target != null && unit.hasWeapons()) {
+            // Suicide bombers dive directly onto targets without detouring around defenses.
+            if (NeoplasmDeathHeatmap.isSuicideBomber(unit)) {
+                moveTo(target, 0f);
+                if (unit.type.faceTarget) unit.lookAt(target);
+                return;
+            }
+
+            Tile destination = null;
+            if (target instanceof Building building) {
+                destination = building.tile;
+            } else if (target instanceof Unit other) {
+                destination = other.tileOn();
+            }
+
+            float engageRange = unit.range() * 0.82f;
+
+            // Use the map-wide strategic Dijkstra route so flyers proactively pick
+            // open flanking paths around fortified chokepoints and turret lines.
+            boolean strategicallyRouted = destination != null
+                    && !unit.within(destination, engageRange)
+                    && deathMemory.applyStrategicTarget(
+                            destination, engageRange, PathfinderCustom.costNone
+                    );
+
+            if (!strategicallyRouted
+                    && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
+                if (unit.type.circleTarget) {
+                    circleAttack(unit.type.circleTargetRadius);
+                } else {
+                    moveTo(target, engageRange);
+                }
+            }
+
+            if (unit.type.faceTarget) {
                 unit.lookAt(target);
             }
         }
 
-        if(target == null && state.rules.waves && unit.team == state.rules.defaultTeam){
-            moveTo(getClosestSpawner(), state.rules.dropZoneRadius + 130f);
+        if (target == null && state.rules.waves && unit.team == state.rules.defaultTeam) {
+            Tile spawner = getClosestSpawner();
+            if (spawner != null) moveTo(spawner, state.rules.dropZoneRadius + 130f);
         }
-    }
-
-    @Override
-    public void circleAttack(float circleLength) {
-        vec.set(this.target).sub(this.unit);
-        float ang = this.unit.angleTo(this.target);
-        float diff = Angles.angleDist(ang, this.unit.rotation());
-        if (diff > 70.0F && vec.len() < circleLength) {
-            vec.setAngle(this.unit.vel().angle());
-        } else {
-            vec.setAngle(Angles.moveToward(this.unit.vel().angle(), vec.angle(), 6.0F));
-        }
-
-        vec.setLength(this.unit.speed());
-        routeAir();
-    }
-
-    @Override
-    public Teamc targetFlag(float x, float y, BlockFlag flag, boolean enemy){
-        return super.targetFlag(x, y, flag, enemy);
-    }
-
-    @Override
-    public Teamc findTarget(float x, float y, float range, boolean air, boolean ground){
-        var result = findMainTarget(x, y, range, air, ground);
-
-        //if the main target is in range, use it, otherwise target whatever is closest
-        return checkTarget(result, x, y, range) ? target(x, y, range, air, ground) : result;
-    }
-
-    @Override
-    public Teamc findMainTarget(float x, float y, float range, boolean air, boolean ground){
-        var core = targetFlag(x, y, BlockFlag.core, true);
-
-        if(core != null && Mathf.within(x, y, core.getX(), core.getY(), range)){
-            return core;
-        }
-
-        for(var flag : unit.type.targetFlags){
-            if(flag == null){
-                Teamc result = target(x, y, range, air, ground);
-                if(result != null) return result;
-            }else if(ground){
-                Teamc result = targetFlag(x, y, flag, true);
-                if(result != null) return result;
-            }
-        }
-
-        return core;
     }
 }

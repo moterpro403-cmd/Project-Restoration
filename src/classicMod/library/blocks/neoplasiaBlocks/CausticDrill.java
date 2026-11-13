@@ -48,23 +48,22 @@ public class CausticDrill extends NeoplasmBlock {
         }
 
         if (this.isMultiblock()) {
-            Iterator var4 = tile.getLinkedTilesAs(this, tempTiles).iterator();
+            Iterator<Tile> iterator = tile.getLinkedTilesAs(this, tempTiles).iterator();
 
             Tile other;
             do {
-                if (!var4.hasNext()) {
+                if (!iterator.hasNext()) {
                     return false;
                 }
 
-                other = (Tile)var4.next();
-            } while(!this.canMine(other));
+                other = iterator.next();
+            } while (!this.canMine(other));
 
             return true;
         } else {
             return this.canMine(tile);
         }
     }
-
 
     public boolean canMine(Tile tile) {
         if (tile != null && !tile.block().isStatic()) {
@@ -79,7 +78,7 @@ public class CausticDrill extends NeoplasmBlock {
         return tile.drop();
     }
 
-    protected void drillWall(Tile tile, int rotation){
+    protected void drillWall(Tile tile, int rotation) {
         for (int r = 0; r < 4; r++) {
             for (int i = 0; i < this.size; ++i) {
                 this.nearbySide(tile.x, tile.y, Mathf.mod(rotation + r, 4), i, Tmp.p1);
@@ -99,19 +98,19 @@ public class CausticDrill extends NeoplasmBlock {
         returnCount = 0;
         oreCount.clear();
         itemArray.clear();
-        Iterator<Tile> var2 = tile.getLinkedTilesAs(this, tempTiles).iterator();
+        Iterator<Tile> iterator = tile.getLinkedTilesAs(this, tempTiles).iterator();
 
-        while(var2.hasNext()) {
-            Tile other = var2.next();
+        while (iterator.hasNext()) {
+            Tile other = iterator.next();
             if (canMine(other)) {
                 oreCount.increment(getDrop(other), 0, 1);
             }
         }
 
-        ObjectIntMap.Keys<Item> var4 = oreCount.keys().iterator();
+        ObjectIntMap.Keys<Item> keys = oreCount.keys().iterator();
 
-        while(var4.hasNext()) {
-            Item item = (Item)var4.next();
+        while (keys.hasNext()) {
+            Item item = keys.next();
             itemArray.add(item);
         }
 
@@ -125,8 +124,8 @@ public class CausticDrill extends NeoplasmBlock {
             }
         });
         if (itemArray.size != 0) {
-            returnItem = (Item)itemArray.peek();
-            returnCount = oreCount.get((Item)itemArray.peek(), 0);
+            returnItem = itemArray.peek();
+            returnCount = oreCount.get(itemArray.peek(), 0);
         }
     }
 
@@ -139,7 +138,6 @@ public class CausticDrill extends NeoplasmBlock {
             CausticDrill.this.countOre(this.tile);
             if (CausticDrill.this.returnItem == null) CausticDrill.this.drillWall(tile, rotation);
             dominantItem = CausticDrill.this.returnItem;
-            //this.dominantItems = Drill.this.returnCount;
         }
 
         public boolean shouldAmbientSound() {
@@ -172,14 +170,12 @@ public class CausticDrill extends NeoplasmBlock {
         @Override
         public void write(Writes write) {
             super.write(write);
-
             write.i((dominantItem != null) ? dominantItem.id : -1);
         }
 
         @Override
         public void read(Reads read, byte revision) {
             super.read(read, revision);
-
             int id = read.i();
             dominantItem = (id <= -1) ? null : Vars.content.item(id);
         }

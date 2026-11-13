@@ -77,7 +77,7 @@ public class CausticSpawner extends NeoplasmBlock {
             super.update();
             updateEfficiency();
             if (efficiency > 0){
-                progress += edelta() * speedScl;
+                progress = Math.min(spawnTime, progress + edelta() * speedScl);
                 speedScl = Mathf.lerpDelta(speedScl, 1f, 0.05f);
             } else {
                 speedScl = Mathf.lerpDelta(speedScl, 0f, 0.05f);
@@ -88,33 +88,38 @@ public class CausticSpawner extends NeoplasmBlock {
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
-            if (progress >= spawnTime){
+            if (progress >= spawnTime && spawn != null
+                && Units.canCreate(team, spawn)
+                && NeoplasmPopulation.canSpawn(team, spawn)){
                 consume();
-                progress %= 1f;
+                progress = 0f;
                 speedScl = 0f;
-                if (Units.canCreate(team, spawn)) {
-                    if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
-                    var unit = spawn.create(team);
-                    unit.set(this);
-                    unit.rotation(90f);
-                    unit.add();
-                }
+                if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
+                var unit = spawn.create(team);
+                unit.set(this);
+                unit.rotation(90f);
+                unit.add();
                 if (selfDestruct){
-                    var dTile = proximityTiles.copy().removeAll(t -> !(t.build instanceof CausticCord.CordBuild));
-                    if(dTile.size > 0) {
-                        Tile ontile = dTile.get(Mathf.random(0, dTile.size - 1) % dTile.size);
-                        if (ontile.build != null && ontile.build instanceof CausticCord.CordBuild cordBuild) {
+                    var dTile = proximityTiles.copy().removeAll(t ->
+                        t == null || !(t.build instanceof CausticCord.CordBuild)
+                    );
+
+                    // A spawner can finish at the edge of a disconnected cord.
+                    // If no adjacent cord remains, still replace the spawner safely.
+                    if (!dTile.isEmpty()) {
+                        Tile ontile = dTile.get(Mathf.random(dTile.size - 1));
+                        if (ontile != null && ontile.build instanceof CausticCord.CordBuild cordBuild){
                             for (int dy = -size; dy < size; dy++) {
                                 for (int dx = -size; dx < size; dx++) {
                                     Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
-                                    if ((tile.build == this) && !cordBuild.Queue.contains(tile)) {
+                                    if (tile != null && tile.build == this && !cordBuild.Queue.contains(tile)) {
                                         cordBuild.Queue.add(tile);
                                     }
                                 }
                             }
                         }
-                        tile.setBlock(pipe, team);
                     }
+                    tile.setBlock(pipe, team);
                 }
             }
         }

@@ -13,13 +13,14 @@ import arc.struct.*;
 import arc.util.*;
 import classicMod.content.*;
 import classicMod.library.EventTypeExtended;
+import classicMod.library.blocks.neoplasiaBlocks.NeoplasmCordNetwork;
 import classicMod.library.ai.*;
 import classicMod.library.ui.UIExtended;
 import classicMod.library.ui.dialog.*;
 import classicMod.library.ui.menu.*;
 import classicMod.library.unitType.unit.JumpingUnit;
 import mindustry.Vars;
-import mindustry.ai.types.CommandAI;
+import mindustry.ai.types.*;
 import mindustry.game.EventType;
 import mindustry.game.EventType.ClientLoadEvent;
 import mindustry.gen.*;
@@ -354,6 +355,8 @@ public class ClassicMod extends Mod {
 
             t.pref(new UIExtended.Separator("restored-content-menu"));
             t.checkPref("content-use-new-sound", false);
+            t.pref(new UIExtended.Separator("restored-neoplasm-profiler"));
+            t.checkPref("neoplasm-profiler", false);
 
             t.row();
             if (false) {
@@ -438,6 +441,9 @@ public class ClassicMod extends Mod {
     @Override
     public void loadContent() {
         registerConstructors();
+        NeoplasmDeathHeatmap.init();
+        NeoplasmCordNetwork.init();
+        NeoplasmPerfMonitor.init();
 
         useNewSound = settings.getBool("content-use-new-sound");
         new RItems().load();
@@ -456,11 +462,27 @@ public class ClassicMod extends Mod {
 
         RMusic.load();
 
-        for (UnitType a : content.units()) {
-            if (a.controller instanceof CommandAI) {
-                if (a.flying) a.controller = u -> new ReplacementFlyingAI();
-                if (!a.flying) a.controller = u -> new ReplacementGroundAI();
+        // Wrap standard AI for rally behavior, but preserve Neoplasm's custom
+        // controllers: they contain the shared death-heat avoidance/pathfinding.
+        Events.on(EventType.ContentInitEvent.class, event -> {
+            for (UnitType type : content.units()) {
+                if (type.controller == null) continue;
+
+                var originalController = type.controller;
+                type.controller = unit -> {
+                    var controller = originalController.get(unit);
+                    if (!unit.team.isAI()) return controller;
+
+                    // These two extend Mindustry's FlyingAI/GroundAI, so they
+                    // must be excluded before the generic wrappers below.
+                    if (controller instanceof NeoplasmFlyingAI
+                        || controller instanceof NeoplasmGroundAI) return controller;
+
+                    if (controller instanceof FlyingAI) return new ReplacementFlyingAI();
+                    if (controller instanceof GroundAI) return new ReplacementGroundAI();
+                    return controller;
+                };
             }
-        }
+        });
     }
 }

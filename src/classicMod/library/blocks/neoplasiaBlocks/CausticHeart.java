@@ -32,7 +32,7 @@ public class CausticHeart extends NeoplasmBlock {
         flags = EnumSet.of(BlockFlag.core);
         unitCapModifier = 10;
         itemCapacity = 10;
-        unitCap = 50;
+        unitCap = 8;
     }
 
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
@@ -55,13 +55,15 @@ public class CausticHeart extends NeoplasmBlock {
         }
 
         public boolean canCreate(Team team, UnitType type) {
-            return team.data().countType(type) < unitCap && !type.isBanned();
+            return team.data().countType(type) < unitCap
+                && NeoplasmPopulation.canSpawn(team, type)
+                && !type.isBanned();
         }
 
         @Override
         public void updateBeat() {
 
-            if (Mathf.chance(0.25) && getClosestVent() != null){
+            if (Mathf.chance(0.05) && getClosestVent() != null){
                 if (!Vars.net.client() && canCreate(team, unitType)) {
                     unit = unitType.create(team);
                     unit.set(this);
@@ -74,6 +76,15 @@ public class CausticHeart extends NeoplasmBlock {
                     //Effect.shake(4f*1.5f, 5f, this);
                     //units.add(unit);
                 }
+            }
+
+            // Keep one Matte carrier available per team to rescue and relocate stuck blobs.
+            if (!Vars.net.client() && team.data().countType(RUnitTypes.matte) < 1 && !RUnitTypes.matte.isBanned()) {
+                Unit matteUnit = RUnitTypes.matte.create(team);
+                matteUnit.set(this);
+                matteUnit.rotation(90f);
+                matteUnit.add();
+                Fx.neoplasiaSmoke.at(this.x, this.y);
             }
 
             super.updateBeat();

@@ -22,6 +22,9 @@ public class PathfinderExtended extends Pathfinder {
     public static Seq<Tile> SteamVents = new Seq<>();
     public static Seq<Tile> Ores = new Seq<>();
 
+    private static boolean preloaded = false;
+    private static boolean fieldsAdded = false;
+
     public PathfinderExtended(){}
 
     public static class SteamVentField extends Flowfield {
@@ -32,7 +35,8 @@ public class PathfinderExtended extends Pathfinder {
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : SteamVents) {
-                if (tile.floor().attributes.get(Attribute.steam) <= 0f) continue;
+                if (tile == null || tile.build != null || tile.floor() == null
+                    || tile.floor().attributes.get(Attribute.steam) <= 0f) continue;
                 float steam = 0f;
                 for (int dy = -1; dy < 2; dy++) {
                     for (int dx = -1; dx < 2; dx++) {
@@ -75,30 +79,27 @@ public class PathfinderExtended extends Pathfinder {
     public static class OresField extends Flowfield {
         //public Item OreTarget;
 
-        public OresField() {}
+        public OresField() {
+            refreshRate = 900; // original field refresh interval
+        }
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : Ores) {
-                out.add(tile.array());
+                if (tile != null && tile.build == null && tile.block() == Blocks.air) {
+                    out.add(tile.array());
+                }
             }
         }
     }
 
     public static void preloadAddons(){
-        Events.on(EventType.WorldLoadEvent.class, (event) -> {
-
+        if (preloaded) return;
+        preloaded = true;
+        Events.on(EventType.WorldLoadEndEvent.class, (event) -> {
+            SteamVents.clear();
+            Ores.clear();
             for (Tile tile : Vars.world.tiles) {
-                var item = tile.drop();
-                if (item == null) {
-                    item = tile.wallDrop(); // TODO wall ore func
-                }
-                if (item != null) {
-                    Ores.add(tile);
-                }
-            }
-            for (Tile tile : Vars.world.tiles) {
-
-                if (tile.floor() == null || tile.block() != Blocks.air) continue;
+                if (tile.floor() == null) continue;
                 if (tile.floor().attributes.get(Attribute.steam) >= 1f) {
                     float steam = 0f;
                     for (int dy = -1; dy < 2; dy++) {
@@ -109,15 +110,18 @@ public class PathfinderExtended extends Pathfinder {
                             steam += vents.floor().attributes.get(Attribute.steam);
                         }
                     }
-                    if (steam >= 9f) {
-                        SteamVents.add(tile);
-                    }
+                    if (steam >= 9f) SteamVents.add(tile);
+                }
+                if ((tile.floor() != null && tile.floor().itemDrop != null) || (tile.block() != null && tile.block().itemDrop != null)){
+                    Ores.add(tile);
                 }
             }
         });
     }
 
     public static void addonFieldTypes(){
+        if (fieldsAdded) return;
+        fieldsAdded = true;
         fieldTypes.add(SteamVentField::new);
         fieldTypes.add(CommandCenterField::new);
         fieldTypes.add(OresField::new);

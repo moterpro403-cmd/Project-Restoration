@@ -107,7 +107,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
     interplanetaryAccelerator, //Endgame - Mindustry
 
-    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
+    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, siegeCrawlerSpawner, sporeCarrierSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
     ;
 
     public void load() {
@@ -1067,7 +1067,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
                         deathExplosionEffect = Fx.massiveExplosion;
                         shootOnDeath = true;
                         shake = 10f;
-                        bullet = new ExplosionBulletType(1500f, 65f) {{
+                        bullet = new ExplosionBulletType(300f, 45f) {{
                             hitColor = Pal.redLight;
                         }};
                     }});
@@ -1112,7 +1112,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = UnitTypes.renale;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
-            spawnTime = 120f;
+            spawnTime = 210f;
         }};
 
         muleSpawner = new CausticSpawner("mule-spawner"){{
@@ -1125,7 +1125,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawn = RUnitTypes.mule;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         squidSpawner = new CausticSpawner("neoplasm-squid-spawner"){{
@@ -1138,7 +1138,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
             spawn = RUnitTypes.squid;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         walkySpawner = new CausticSpawner("neoplasm-immitis-arc-pod"){{
@@ -1152,7 +1152,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.arkycite.color;
             spawn = RUnitTypes.miserable;
-            spawnTime = 60f;
+            spawnTime = 180f;
         }};
 
         hydroBomberSpawner = new CausticSpawner("neoplasm-immitis-hydro-pod"){{
@@ -1166,7 +1166,35 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.hydrogen.color;
             spawn = RUnitTypes.hydroBomber;
-            spawnTime = 60f;
+            spawnTime = 210f;
+        }};
+
+
+
+
+
+        siegeCrawlerSpawner = new CausticSpawner("siege-crawler-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.graphite, 1));
+
+            size = 4;
+            selfDestruct = true;
+            spawn = RUnitTypes.siegeCrawler;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Liquids.arkycite.color;
+            spawnTime = 240f;
+        }};
+
+        sporeCarrierSpawner = new CausticSpawner("spore-carrier-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.oxide, 1));
+
+            size = 3;
+            selfDestruct = true;
+            spawn = RUnitTypes.sporeCarrier;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Color.valueOf("8a54a6");
+            spawnTime = 210f;
         }};
 
         neoplasiaBomb = new CausticMine("Neoplasia-Bomb"){{

@@ -9,6 +9,7 @@ import arc.scene.ui.layout.Table;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.io.*;
+import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.Team;
@@ -25,6 +26,14 @@ public class Teleporter extends Block{
     protected static final Color[] selection = new Color[]{Color.royal, Color.orange, Color.scarlet, Color.forest, Color.purple, Color.gold, Color.pink, Color.black};
     protected static final ObjectSet<TeleporterBuild>[][] teleporters;
     protected float powerUse = 0.8f;
+
+    private static boolean validToggle(int toggle){
+        return toggle >= 0 && toggle < selection.length;
+    }
+
+    private static boolean validTeam(Team team){
+        return team != null && team.id >= 0 && team.id < teleporters.length;
+    }
     protected TextureRegion blankRegion;
 
     static{
@@ -47,14 +56,19 @@ public class Teleporter extends Block{
             for(int i = 0; i < teleporters.length; i++){
                 for(int j = 0; j < teleporters[i].length; j++) teleporters[i][j].clear();
             }
+            // Rebuild the registry after saved buildings have been read.
+            for(mindustry.world.Tile tile : Vars.world.tiles){
+                if(tile.build instanceof TeleporterBuild build) build.registerChannel();
+            }
         });
         config(Integer.class, (TeleporterBuild build, Integer value) -> {
-            if(build.toggle != -1) teleporters[build.team.id][build.toggle].remove(build);
-            if(value != -1) teleporters[build.team.id][value].add(build);
+            if(value == null || (value != -1 && !validToggle(value))) return;
+            if(validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
+            if(validTeam(build.team) && validToggle(value)) teleporters[build.team.id][value].add(build);
             build.toggle = value;
         });
         configClear((TeleporterBuild build) -> {
-            if(build.toggle != -1) teleporters[build.team.id][build.toggle].remove(build);
+            if(validTeam(build.team) && validToggle(build.toggle)) teleporters[build.team.id][build.toggle].remove(build);
             build.toggle = -1;
         });
     }
@@ -94,6 +108,19 @@ public class Teleporter extends Block{
         protected TeleporterBuild target;
         protected Team previousTeam;
 
+        private void registerChannel(){
+            if(!validToggle(toggle) || !validTeam(team)){
+                toggle = -1;
+                previousTeam = team;
+                return;
+            }
+            if(previousTeam != null && previousTeam != team && validTeam(previousTeam)){
+                teleporters[previousTeam.id][toggle].remove(this);
+            }
+            teleporters[team.id][toggle].add(this);
+            previousTeam = team;
+        }
+
         protected void onDuration(){
             if(duration < 0f) duration = 0f;
             else duration -= Time.delta;
@@ -110,7 +137,7 @@ public class Teleporter extends Block{
         @Override
         public void draw(){
             super.draw();
-            if(toggle != -1){
+            if(validToggle(toggle)){
                 Draw.color(selection[toggle]);
                 Draw.rect(blankRegion, x, y);
             }
@@ -123,11 +150,7 @@ public class Teleporter extends Block{
         public void updateTile(){
             onDuration();
             if(items.any()) dump();
-            if(isTeamChanged() && toggle != -1){
-                teleporters[team.id][toggle].add(this);
-                teleporters[previousTeam.id][toggle].remove(this);
-                previousTeam = team;
-            }
+            if(isTeamChanged()) registerChannel();
         }
 
         @Override
@@ -145,6 +168,7 @@ public class Teleporter extends Block{
         }
 
         protected TeleporterBuild findLink(int value){
+            if(!validTeam(team) || !validToggle(value)) return null;
             ObjectSet<TeleporterBuild> teles = teleporters[team.id][value];
             Seq<TeleporterBuild> entries = teles.toSeq();
             if(entry >= entries.size) entry = 0;
@@ -153,7 +177,11 @@ public class Teleporter extends Block{
                 if(other == this) entry = 0;
             }
             for(int i = entry, len = entries.size; i < len; i++){
-                TeleporterBuild other = teles.get(entries.get(i));
+                TeleporterBuild other = entries.get(i);
+                if(other == null || !other.isValid()){
+                    teles.remove(other);
+                    continue;
+                }
                 if(other != this){
                     entry = i + 1;
                     return other;
@@ -164,29 +192,33 @@ public class Teleporter extends Block{
 
         @Override
         public boolean acceptItem(Building source, Item item){
-            if(toggle == -1) return false;
+            if(!validToggle(toggle)) return false;
             target = findLink(toggle);
             if(target == null) return false;
-            return source != this && canConsume() && Mathf.zero(1 - efficiency) && target.items.total() < target.getMaximumAccepted(item);
+            return target.isValid() && source != this && canConsume() && Mathf.zero(1 - efficiency) && target.items.get(item) < target.getMaximumAccepted(item);
         }
 
         @Override
         public void handleItem(Building source, Item item){
-            target.items.add(item, 1);
+            TeleporterBuild destination = target;
+            target = null;
+            // The destination may have been removed or reconfigured since acceptItem.
+            if(destination == null || !destination.isValid()) return;
+            if(destination.items.get(item) >= destination.getMaximumAccepted(item)) return;
+            destination.items.add(item, 1);
             duration = 0f;
         }
 
         @Override
         public void created(){
-            if(toggle != -1) teleporters[team.id][toggle].add(this);
-            previousTeam = team;
+            registerChannel();
         }
 
         @Override
         public void onRemoved(){
-            if(toggle != -1){
-                if(isTeamChanged()) teleporters[previousTeam.id][toggle].remove(this);
-                else teleporters[team.id][toggle].remove(this);
+            if(validToggle(toggle)){
+                if(isTeamChanged() && validTeam(previousTeam)) teleporters[previousTeam.id][toggle].remove(this);
+                else if(validTeam(team)) teleporters[team.id][toggle].remove(this);
             }
             //unity.Unity.print(teleporters[team.id]);
         }
@@ -206,6 +238,7 @@ public class Teleporter extends Block{
         public void read(Reads read, byte revision){
             super.read(read, revision);
             toggle = read.b();
+            registerChannel();
         }
     }
 }

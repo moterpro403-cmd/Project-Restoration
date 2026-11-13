@@ -48,7 +48,10 @@ public class SuicideBomberAI extends NeoplasmAIController {
                 }
             }*/
 
-            routeAir();
+            // Suicide bombers should commit to their target instead of
+            // detouring around remembered Neoplasm deaths.
+            vec.set(target.getX() - unit.x, target.getY() - unit.y);
+            if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
         }
 
         unit.controlWeapons(rotate, shoot);

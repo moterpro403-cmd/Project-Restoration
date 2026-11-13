@@ -1,7 +1,7 @@
 package classicMod.library.ai;
 
-import arc.util.*;
-import classicMod.content.*;
+import classicMod.content.RBlocks;
+import classicMod.content.RVars;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
 import mindustry.world.Tile;
@@ -11,23 +11,21 @@ public class SteamHugAI extends NeoplasmAIController {
 
     boolean stucked = false;
 
-    @Nullable
-    Tile targetDestination;
-
     @Override
     public void updateMovement() {
         Tile closestVent = getClosestVent();
-        if (closestVent != null){
-            targetDestination = closestVent;
-            pathfind(PathfinderCustom.fieldVent);
+        if (closestVent != null) {
+            pathfind(PathfinderExtended.fieldVent);
         } else {
-            ignore = true;
+            ignoreDeathHeat = true;
             unit.kill();
         }
+
         faceMovement();
         Tile tile = unit.tileOn();
-        if (tile != null && tile.floor().attributes.get(Attribute.steam) >= 1f && !(tile.build instanceof CausticHeart.HeartBuilding)) {
-            ignore = true;
+        if (tile != null && tile.floor().attributes.get(Attribute.steam) >= 1f
+            && !(tile.build instanceof CausticHeart.HeartBuilding)) {
+            ignoreDeathHeat = true;
             tile.setBlock(RBlocks.cord, unit.team);
             unit.kill();
         }
@@ -36,36 +34,36 @@ public class SteamHugAI extends NeoplasmAIController {
     @Override
     public void pathfind(int pathTarget) {
         stucked = false;
-
         int costType = this.unit.type.flowfieldPathType;
         Tile tile = this.unit.tileOn();
-        if (tile == null) return;
-
-        // Try to find a normal path target avoiding DodgeTile
-        Tile targetTile = RVars.pathfinderCustom.getTargetTileDodge(
-                tile,
-                RVars.pathfinderCustom.getField(this.unit.team, costType, pathTarget),
-                DodgeTile
-        );
-
-        // Fallback logic if path is blocked or null
-        if (targetTile == null || tile == targetTile) {
-            // Try escaping to the edge of the danger zone
-            targetTile = getEdgeEscapeTile();
-
-            // Still stuck? Mark as stucked
-            if (targetTile == null || tile == targetTile) {
-                stucked = true;
-                return;
-            }
+        if (tile == null) {
+            stucked = true;
+            return;
         }
 
-        // Move toward target if valid
-        if (costType != 2 || targetTile.floor().isLiquid) {
-            this.unit.movePref(vec.trns(
-                    this.unit.angleTo(targetTile.worldx(), targetTile.worldy()),
-                    this.unit.speed()
-            ));
+        // Prefer a safe death-aware step when one exists.
+        Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
+        if (dodgeTarget != null
+            && dodgeTarget != tile
+            && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
+            this.unit.movePref(
+                vec.trns(this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()), this.unit.speed())
+            );
+            return;
+        }
+
+        // No usable safe step: resume the original Mindustry 160.7 vent route.
+        Tile targetTile = Vars.pathfinder.getTargetTile(
+            tile,
+            Vars.pathfinder.getField(this.unit.team, costType, pathTarget)
+        );
+        if (targetTile != null && tile != targetTile
+            && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
+            this.unit.movePref(
+                vec.trns(this.unit.angleTo(targetTile.worldx(), targetTile.worldy()), this.unit.speed())
+            );
+        } else {
+            stucked = true;
         }
     }
 }
