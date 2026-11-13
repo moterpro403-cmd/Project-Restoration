@@ -113,7 +113,14 @@ public final class NeoplasmStrategicPathfinder {
 
         float[] distance = new float[length];
         Arrays.fill(distance, Float.POSITIVE_INFINITY);
-        PriorityQueue<Node> frontier = new PriorityQueue<>(Comparator.comparingDouble(node -> node.cost));
+        PriorityQueue<Node> frontier = new PriorityQueue<>(11, new Comparator<Node>() {
+            @Override
+            public int compare(Node first, Node second){
+                if(first.cost < second.cost) return -1;
+                if(first.cost > second.cost) return 1;
+                return 0;
+            }
+        });
 
         if(explicitTargets != null){
             for(int target : explicitTargets) addTarget(target, base, distance, frontier);

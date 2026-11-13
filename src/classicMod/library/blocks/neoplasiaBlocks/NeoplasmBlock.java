@@ -157,11 +157,16 @@ public class NeoplasmBlock extends Block {
         }
 
         public void coverVent(Block replacmentBlock, Block cordPlacement){
+            // Buildings can be removed or replaced during an update. Never dereference
+            // a missing tile/floor while the cord is finishing its growth tick.
+            Tile origin = this.tile;
+            if (origin == null || origin == Vars.emptyTile || origin.floor() == null) return;
+
             float steam = 0;
-            if (this.tile.floor().attributes.get(Attribute.steam) >= 1) {
+            if (origin.floor().attributes.get(Attribute.steam) >= 1) {
                 for (int dy = -1; dy < 2; dy++) {
                     for (int dx = -1; dx < 2; dx++) {
-                        Tile tile = Vars.world.tile(this.tile.x + dx, this.tile.y + dy);
+                        Tile tile = Vars.world.tile(origin.x + dx, origin.y + dy);
                         // A vent near the map edge may have neighbors outside the world.
                         if (tile != null && tile.floor() != null
                             && (tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
@@ -174,7 +179,7 @@ public class NeoplasmBlock extends Block {
                 }
             }
             if (steam >= 9f){
-                Tile replacement = Vars.world.tile(this.tile.x, this.tile.y);
+                Tile replacement = Vars.world.tile(origin.x, origin.y);
                 if (replacement != null) replacement.setBlock(replacmentBlock, team, rotation);
             }
         }
@@ -456,7 +461,7 @@ public class NeoplasmBlock extends Block {
                 }
 
             } else {
-                if (this.tile.floor() != null
+                if (this.tile != null && this.tile != Vars.emptyTile && this.tile.floor() != null
                     && (this.tile.floor().attributes.get(Attribute.steam) >= 1 || tile.drop() != null)
                     && this instanceof CausticCord.CordBuild) {
                     if (isCord && tile.drop() != null) coverOre(drill);
