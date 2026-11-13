@@ -33,7 +33,7 @@ public final class NeoplasmDeathHeatmap {
 
     static {
         for(int i = 0; i <= maxDecaySteps; i++){
-            decayFactors[i] = (float)Math.pow(0.5d, (double)i * decayStepMillis / halfLifeMillis);
+            decayFactors[i] = (float)Math.pow(0.5d, (double)i * decayStepTicks / halfLifeTicks);
         }
         for(int dy = -radius; dy <= radius; dy++){
             for(int dx = -radius; dx <= radius; dx++){
@@ -267,7 +267,7 @@ public final class NeoplasmDeathHeatmap {
         HeatGrid(int width, int height) {
             int size = width * height;
             values = new float[size];
-            updated = new long[size];
+            updated = new float[size];
             tracked = new boolean[size];
         }
     }
