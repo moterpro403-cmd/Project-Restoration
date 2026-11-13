@@ -1,6 +1,7 @@
 package classicMod.library.ai;
 
 import classicMod.content.RBlocks;
+import classicMod.content.RVars;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
 import mindustry.world.Tile;
@@ -33,23 +34,38 @@ public class SteamHugAI extends NeoplasmAIController {
     @Override
     public void pathfind(int pathTarget) {
         stucked = false;
-        // Mindustry 160.7 removed Unit.pathType(); this is its equivalent.
         int costType = this.unit.type.flowfieldPathType;
         Tile tile = this.unit.tileOn();
-        if (tile != null) {
-            Tile targetTile = Vars.pathfinder.getTargetTile(
-                tile,
-                Vars.pathfinder.getField(this.unit.team, costType, pathTarget)
-            );
+        if (tile == null) {
+            stucked = true;
+            return;
+        }
 
-            if (targetTile != null && tile != targetTile
-                && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
+        // Activate avoidance only after a real death was recorded and the
+        // custom route is ready. Normal vent travel keeps its original code.
+        Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
+        if (dodgeTarget != null) {
+            if (dodgeTarget != tile
+                && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
                 this.unit.movePref(
-                    vec.trns(this.unit.angleTo(targetTile.worldx(), targetTile.worldy()), this.unit.speed())
+                    vec.trns(this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()), this.unit.speed())
                 );
             } else {
                 stucked = true;
             }
+            return;
+        }
+
+        // Original Mindustry 160.7 pathfinding fallback.
+        Tile targetTile = Vars.pathfinder.getTargetTile(
+            tile,
+            Vars.pathfinder.getField(this.unit.team, costType, pathTarget)
+        );
+        if (targetTile != null && tile != targetTile
+            && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
+            this.unit.movePref(
+                vec.trns(this.unit.angleTo(targetTile.worldx(), targetTile.worldy()), this.unit.speed())
+            );
         } else {
             stucked = true;
         }
