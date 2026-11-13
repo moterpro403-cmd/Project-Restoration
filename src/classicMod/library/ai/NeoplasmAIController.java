@@ -29,23 +29,15 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     public Tile getClosestVent() {
-        return getClosestVent(false);
+        Seq<Tile> avaliableVents = PathfinderExtended.SteamVents.copy()
+            .removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding);
+        Tile vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
+        return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
     }
 
     @Nullable
     public Tile getClosestVent(boolean avoidDangerous) {
-        Seq<Tile> avaliableVents = PathfinderExtended.SteamVents.copy()
-            .removeAll(tile -> tile.build instanceof CausticHeart.HeartBuilding || tile.block() != Blocks.air);
-        Tile vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
-        if (vent == null) return null;
-        if (avoidDangerous) {
-            var enemy = Units.findEnemyTile(this.unit.team, vent.getX(), vent.getY(), 240f, building -> !building.dead);
-            if (enemy != null) {
-                avaliableVents.removeAll(tile -> tile.dst(enemy) <= 80f);
-                vent = Geometry.findClosest(this.unit.x, this.unit.y, avaliableVents);
-            }
-        }
-        return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
+        return getClosestVent();
     }
 
     public Tile getClosestTarget(int range){
