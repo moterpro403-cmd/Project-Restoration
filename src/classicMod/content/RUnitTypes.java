@@ -67,7 +67,7 @@ public class RUnitTypes {
 
     mantis, // TESTING
 
-    blob, matte, squid, worm, mule, kalyx, hydroBomber, miserable, pallium,// NEOPLASM TESTING
+    blob, matte, squid, worm, mule, kalyx, hydroBomber, miserable, pallium, siegeCrawler, sporeCarrier, // NEOPLASM / PHASE 3
 
     alphaChan, crawlerChan, boulderChan, monoChan, octChan, oxynoeChan, quadChan, seiChan, zenithChan //Unit - Old Content [Animdustry]
     ;
@@ -479,6 +479,75 @@ public class RUnitTypes {
                 }});
             }
 
+        }};
+
+
+        // Phase 3 prototype: placeholder artwork is aliased from existing Neoplasm sprites.
+        // Replace the PNGs under assets/sprites/units/v8-prototype without changing these IDs.
+        siegeCrawler = new NeoplasmUnitType("siege-crawler"){{
+            constructor = CrawlUnit::create;
+            aiController = NeoplasmHugAI::new;
+            playerControllable = false;
+            health = 1350f;
+            armor = 2.2f;
+            hitSize = 17f;
+            omniMovement = false;
+            targetAir = false;
+            targetGround = true;
+            rotateSpeed = 2.2f;
+            segmentRotSpeed = 0.65f;
+            segments = 3;
+            segmentScl = 3.5f;
+            segmentPhase = 5.5f;
+            segmentMag = 0.6f;
+            speed = 0.82f;
+            drawBody = false;
+            range = 230f;
+
+            weapons.add(new Weapon(){{
+                x = 0f;
+                y = 2f;
+                reload = 105f;
+                rotate = true;
+                rotateSpeed = 2.2f;
+                shootCone = 16f;
+                inaccuracy = 3f;
+                ejectEffect = Fx.none;
+                shootSound = RSounds.pewc;
+
+                bullet = new BasicBulletType(3.2f, 68f){{
+                    width = 10f;
+                    height = 13f;
+                    lifetime = 72f;
+                    splashDamage = 42f;
+                    splashDamageRadius = 26f;
+                    hitColor = backColor = trailColor = Pal.neoplasm2;
+                    frontColor = Pal.neoplasm1;
+                    trailWidth = 2f;
+                    trailLength = 6;
+                    hitEffect = despawnEffect = Fx.hitBulletColor;
+                }};
+            }});
+        }};
+
+        // Payload support unit: recovers stalled vesicles and carries them toward safe growth areas.
+        // The matte sprite is a temporary visual stand-in; its asset name is intentionally stable.
+        sporeCarrier = new NeoplasmUnitType("spore-carrier"){{
+            constructor = PayloadUnit::create;
+            controller = u -> new HelperBlobAI();
+            playerControllable = false;
+            flying = true;
+            lowAltitude = true;
+            speed = 1.9f;
+            accel = 0.07f;
+            drag = 0.045f;
+            health = 180f;
+            armor = 0.9f;
+            hitSize = 13f;
+            payloadCapacity = Mathf.sqr(0.65f) * tilePayload;
+            rotateMoveFirst = true;
+            rotateSpeed = 4.5f;
+            fallDriftScl = 48f;
         }};
 
         mantis = new MantisRayType("skat"){{

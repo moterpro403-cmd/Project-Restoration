@@ -107,7 +107,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
     interplanetaryAccelerator, //Endgame - Mindustry
 
-    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
+    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, siegeCrawlerSpawner, sporeCarrierSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
     ;
 
     public void load() {
@@ -1171,6 +1171,31 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
 
 
+
+
+        siegeCrawlerSpawner = new CausticSpawner("siege-crawler-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.graphite, 1));
+
+            size = 4;
+            selfDestruct = true;
+            spawn = RUnitTypes.siegeCrawler;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Liquids.arkycite.color;
+            spawnTime = 120f;
+        }};
+
+        sporeCarrierSpawner = new CausticSpawner("spore-carrier-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.oxide, 1));
+
+            size = 3;
+            selfDestruct = true;
+            spawn = RUnitTypes.sporeCarrier;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Color.valueOf("8a54a6");
+            spawnTime = 100f;
+        }};
 
         neoplasiaBomb = new CausticMine("Neoplasia-Bomb"){{
             requirements(Category.distribution, with(Items.beryllium, 1));

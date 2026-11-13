@@ -359,7 +359,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.graphite, 3) >= 3))
 
                 ){
-                    if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
+                    if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
+                    else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
                     else ReplaceTo(RBlocks.squidSpawner);
                     cordMode = false;
                 }
@@ -372,7 +373,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.oxide, 3) >= 3))
                 ){
 
-                    ReplaceTo(RBlocks.hydroBomberSpawner);
+                    if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
+                    else ReplaceTo(RBlocks.hydroBomberSpawner);
                     cordMode = false;
                 }
 
