@@ -5,6 +5,7 @@ import arc.graphics.*;
 import arc.math.*;
 import arc.math.geom.*;
 import arc.struct.*;
+import arc.util.Time;
 import classicMod.library.ability.*;
 import classicMod.library.ai.*;
 import classicMod.library.bullets.*;
@@ -504,6 +505,51 @@ public class RUnitTypes {
             drawBody = false;
             range = 230f;
 
+            // Four small Neoplasm limbs borrowed from the existing walky leg art.
+            // Each limb swings on an offset cycle, even while the unit is idle.
+            parts.addAll(
+                new RegionPart("-leg"){{
+                    x = -8f;
+                    y = 5f;
+                    rotation = 42f;
+                    xScl = yScl = 0.52f;
+                    outline = false;
+                    progress = p -> 1f;
+                    growProgress = p -> 1f;
+                    moves.add(new PartMove(p -> 0.5f + Mathf.sin(Time.time / 10f) * 0.5f, -0.7f, 1.1f, -14f));
+                }},
+                new RegionPart("-leg"){{
+                    x = 8f;
+                    y = 5f;
+                    rotation = -42f;
+                    xScl = yScl = 0.52f;
+                    outline = false;
+                    progress = p -> 1f;
+                    growProgress = p -> 1f;
+                    moves.add(new PartMove(p -> 0.5f - Mathf.sin(Time.time / 10f) * 0.5f, 0.7f, 1.1f, 14f));
+                }},
+                new RegionPart("-leg"){{
+                    x = -8f;
+                    y = -5f;
+                    rotation = 138f;
+                    xScl = yScl = 0.52f;
+                    outline = false;
+                    progress = p -> 1f;
+                    growProgress = p -> 1f;
+                    moves.add(new PartMove(p -> 0.5f - Mathf.sin(Time.time / 10f) * 0.5f, -0.7f, -1.1f, 14f));
+                }},
+                new RegionPart("-leg"){{
+                    x = 8f;
+                    y = -5f;
+                    rotation = -138f;
+                    xScl = yScl = 0.52f;
+                    outline = false;
+                    progress = p -> 1f;
+                    growProgress = p -> 1f;
+                    moves.add(new PartMove(p -> 0.5f + Mathf.sin(Time.time / 10f) * 0.5f, 0.7f, -1.1f, -14f));
+                }}
+            );
+
             weapons.add(new Weapon(){{
                 x = 0f;
                 y = 2f;
@@ -512,6 +558,7 @@ public class RUnitTypes {
                 rotateSpeed = 2.2f;
                 shootCone = 16f;
                 inaccuracy = 3f;
+                recoil = 3.2f;
                 ejectEffect = Fx.none;
                 shootSound = RSounds.pewc;
 
@@ -521,6 +568,8 @@ public class RUnitTypes {
                     lifetime = 72f;
                     splashDamage = 42f;
                     splashDamageRadius = 26f;
+                    shootEffect = Fx.shootBig;
+                    smokeEffect = RFx.smokeColor;
                     hitColor = backColor = trailColor = Pal.neoplasm2;
                     frontColor = Pal.neoplasm1;
                     trailWidth = 2f;

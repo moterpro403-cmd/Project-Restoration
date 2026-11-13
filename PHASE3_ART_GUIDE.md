@@ -6,6 +6,7 @@ The first two Phase 3 prototypes deliberately reuse existing Neoplasm artwork so
 
 - `siege-crawler.png` and `siege-crawler-full.png`: copied from the existing worm body artwork.
 - `siege-crawler-segment0.png` through `segment2.png`: copied from the existing worm segment frames.
+- `siege-crawler-leg.png`: copied from the existing walky leg sprite and animated as four small articulated limbs.
 - `spore-carrier.png`: copied from the existing matte unit sprite.
 - `siege-crawler-spawner.png`: copied from the existing mule spawner.
 - `spore-carrier-spawner.png`: copied from the existing hydro pod.
