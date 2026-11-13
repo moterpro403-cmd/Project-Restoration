@@ -462,8 +462,8 @@ public class ClassicMod extends Mod {
 
         RMusic.load();
 
-        // Wrap the factory instead of replacing every unit's controller.
-        // Player-controlled CommandAI and mod-specific AI implementations are preserved.
+        // Wrap standard AI for rally behavior, but preserve Neoplasm's custom
+        // controllers: they contain the shared death-heat avoidance/pathfinding.
         Events.on(EventType.ContentInitEvent.class, event -> {
             for (UnitType type : content.units()) {
                 if (type.controller == null) continue;
@@ -472,6 +472,11 @@ public class ClassicMod extends Mod {
                 type.controller = unit -> {
                     var controller = originalController.get(unit);
                     if (!unit.team.isAI()) return controller;
+
+                    // These two extend Mindustry's FlyingAI/GroundAI, so they
+                    // must be excluded before the generic wrappers below.
+                    if (controller instanceof NeoplasmFlyingAI
+                        || controller instanceof NeoplasmGroundAI) return controller;
 
                     if (controller instanceof FlyingAI) return new ReplacementFlyingAI();
                     if (controller instanceof GroundAI) return new ReplacementGroundAI();
