@@ -118,11 +118,6 @@ public class PathfinderCustom implements Runnable {
                 this.tiles[i] = this.packTile(tile);
             }
 
-            for(int i = 0; i < tiles.length; i++){
-                Tile tile = world.tiles.geti(i);
-                tiles[i] = packTile(tile);
-            }
-
             //don't bother setting up paths unless necessary
             if(state.rules.waveTeam.needsFlowField() && !net.client()){
                 preloadPath(getField(state.rules.waveTeam, costGround, fieldCore));
@@ -145,37 +140,34 @@ public class PathfinderCustom implements Runnable {
         Events.on(EventType.TileChangeEvent.class, (event) -> {
             this.updateTile(event.tile);
         });
-        Events.on(EventType.TilePreChangeEvent.class, (event) -> {
+        Events.on(EventType.TilePreChangeEvent.class, event -> {
             Tile tile = event.tile;
-            if (tile.solid()) {
-                for(int i = 0; i < 4; ++i) {
+            if (tile != null && tile.solid()) {
+                for (int i = 0; i < 4; i++) {
                     Tile other = tile.nearby(i);
-                    if (other != null && !other.solid()) {
-                        boolean otherNearSolid = false;
+                    if (other == null || other.solid()) continue;
 
-                        int arr;
-                        for(arr = 0; arr < 4; ++arr) {
-                            Tile othernear = other.nearby(i);
-                            if (othernear != null && othernear.solid()) {
-                                otherNearSolid = true;
-                                break;
-                            }
+                    boolean otherNearSolid = false;
+                    for (int dir = 0; dir < 4; dir++) {
+                        Tile otherNear = other.nearby(dir);
+                        if (otherNear != null && otherNear != tile
+                            && otherNear.solid() && !otherNear.block().teamPassable) {
+                            otherNearSolid = true;
+                            break;
                         }
+                    }
 
-                        arr = other.array();
-                        if (!otherNearSolid && this.tiles.length > arr) {
-                            int[] var10000 = this.tiles;
-                            var10000[arr] &= -2097153;
-                        }
+                    int arr = other.array();
+                    if (!otherNearSolid && arr >= 0 && arr < this.tiles.length) {
+                        this.tiles[arr] &= ~PathTile.bitMaskNearSolid;
                     }
                 }
             }
-
         });
     }
 
     private void clearCache() {
-        this.cache = new Flowfield[256][5][5];
+        this.cache = new Flowfield[256][maxCosts][Math.max(8, fieldTypes.size)];
     }
 
     /** Packs a tile into its internal representation. */
@@ -339,71 +331,75 @@ public class PathfinderCustom implements Runnable {
         return getTargetTile(tile, path, false);
     }
 
-    public @Nullable Tile getTargetTile(Tile tile, Flowfield path){
+    public @Nullable Tile getTargetTile(Tile tile, Flowfield path) {
         return getTargetTile(tile, path, true);
     }
 
     /** Gets next tile to travel to. Main thread only. */
-    public @Nullable Tile getTargetTile(Tile tile, Flowfield path, boolean diagonals){
+    public @Nullable Tile getTargetTile(Tile tile, Flowfield path, boolean diagonals) {
         return getTargetTile(tile, path, diagonals, 0);
     }
 
+    public @Nullable Tile getTargetTile(Tile tile, Flowfield path, boolean diagonals, int avoidanceId) {
+        if (tile == null || path == null) return null;
+        if (!path.initialized || path.targets.size == 0) return tile;
 
-    public @Nullable Tile getTargetTile(Tile tile, Flowfield path, boolean diagonals, int avoidanceId){
-        if(tile == null) return null;
-
-        //uninitialized flowfields are not applicable
-        //also ignore paths with no targets, there is no destination
-        if(!path.initialized || path.targets.size == 0){
-            return tile;
-        }
-
-        //if refresh rate is positive, queue a refresh
-        if(path.refreshRate > 0 && path.refreshRate != neverRefresh && Time.timeSinceMillis(path.lastUpdateTime) > path.refreshRate && path.frontier.size == 0){
+        if (path.refreshRate > 0 && path.refreshRate != neverRefresh
+            && Time.timeSinceMillis(path.lastUpdateTime) > path.refreshRate && path.frontier.size == 0) {
             path.lastUpdateTime = Time.millis();
-
             tmpArray.clear();
             path.getPositions(tmpArray);
-
-            synchronized(path.targets){
+            synchronized (path.targets) {
                 path.updateTargetPositions();
-
-                //queue an update
                 queue.post(() -> updateTargets(path));
             }
         }
 
-        //use complete weights if possible; these contain a complete flow field that is not being updated
         int[] values = path.hasComplete ? path.completeWeights : path.weights;
         int res = path.resolution;
         int ww = path.width;
-        int apos = tile.x/res + tile.y/res * ww;
+        int apos = tile.x / res + tile.y / res * ww;
+        if (apos < 0 || apos >= values.length) return tile;
         int value = values[apos];
 
         var points = diagonals ? Geometry.d8 : Geometry.d4;
         int[] avoid = avoidanceId <= 0 ? null : avoidance.getAvoidance();
-
         Tile current = null;
-        int tl = 0;
-        for(Point2 point : points){
-            int dx = tile.x + point.x * res, dy = tile.y + point.y * res;
+        int bestCost = Integer.MAX_VALUE;
 
-            Tile other = world.tile(dx, dy);
-            if(other == null) continue;
+        for (Point2 point : points) {
+            int dx = tile.x + point.x * res;
+            int dy = tile.y + point.y * res;
+            Tile other = Vars.world.tile(dx, dy);
+            if (other == null) continue;
 
-            int packed = dx/res + dy/res * ww;
-            int avoidance = avoid == null ? 0 : avoid[packed] > Integer.MAX_VALUE - avoidanceId ? 1 : 0;
-            int cost = values[packed] + avoidance;
+            int packed = dx / res + dy / res * ww;
+            if (packed < 0 || packed >= values.length) continue;
+            int cost = values[packed];
+            if (cost == impassable) continue;
 
-            if(cost < value && avoidance == 0 && (current == null || cost < tl) && path.passable(packed) &&
-                    !(point.x != 0 && point.y != 0 && (!path.passable(((tile.x + point.x)/res + tile.y/res*ww)) || !path.passable((tile.x/res + (tile.y + point.y)/res*ww))))){ //diagonal corner trap
-                current = other;
-                tl = cost;
+            int avoidanceCost = avoid != null && packed < avoid.length
+                && avoid[packed] > Integer.MAX_VALUE - avoidanceId ? 1 : 0;
+            int totalCost = cost + avoidanceCost;
+            boolean improves = value == impassable || totalCost < value;
+            if (!improves || avoidanceCost != 0 || totalCost >= bestCost || !path.passable(packed)) continue;
+
+            if (point.x != 0 && point.y != 0) {
+                int horizontal = (tile.x + point.x * res) / res + tile.y / res * ww;
+                int vertical = tile.x / res + (tile.y + point.y * res) / res * ww;
+                if (horizontal < 0 || horizontal >= values.length
+                    || vertical < 0 || vertical >= values.length
+                    || !path.passable(horizontal) || !path.passable(vertical)) continue;
             }
+
+            current = other;
+            bestCost = totalCost;
         }
 
-        if(current == null || tl == impassable || (path.cost == costTypes.items[costGround] && current.dangerous() && !tile.dangerous())) return tile;
-
+        if (current == null
+            || (path.cost == costTypes.items[costGround] && current.dangerous() && !tile.dangerous())) {
+            return tile;
+        }
         return current;
     }
 
@@ -716,7 +712,8 @@ public class PathfinderCustom implements Runnable {
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : SteamVents) {
-                if (tile.floor().attributes.get(Attribute.steam) <= 0f) continue;
+                if (tile == null || tile.build != null || tile.floor() == null
+                    || tile.floor().attributes.get(Attribute.steam) <= 0f) continue;
                 float steam = 0f;
                 for (int dy = -1; dy < 2; dy++) {
                     for (int dx = -1; dx < 2; dx++) {
@@ -740,7 +737,11 @@ public class PathfinderCustom implements Runnable {
 
         protected void getPositions(IntSeq out) {
             for (Tile tile : Ores) {
-                if (RVars.CordCanDrill.contains(tile.wallDrop())) out.add(tile.array());
+                if (tile == null || tile.build != null) continue;
+                if ((tile.wallDrop() != null && RVars.CordCanDrill.contains(tile.wallDrop()))
+                    || (tile.drop() != null && RVars.CordCanDrill.contains(tile.drop()))) {
+                    out.add(tile.array());
+                }
             }
         }
     }

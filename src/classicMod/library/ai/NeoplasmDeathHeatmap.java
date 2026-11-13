@@ -24,9 +24,10 @@ public final class NeoplasmDeathHeatmap {
     private static final int radius = 9;
     private static final float deathHeat = 55f;
     private static final float maxHeat = 300f;
-    private static final long halfLifeMillis = 180000L;
-    private static final int decayStepMillis = 250;
-    private static final int maxDecaySteps = (int)(halfLifeMillis * 12L / decayStepMillis);
+    /** Three-minute half-life measured in simulation ticks (60 ticks/sec). */
+    private static final float halfLifeTicks = 180f * 60f;
+    private static final float decayStepTicks = 15f;
+    private static final int maxDecaySteps = (int)(halfLifeTicks * 12f / decayStepTicks);
     private static final float[] decayFactors = new float[maxDecaySteps + 1];
     private static final float[][] deathFalloff = new float[radius * 2 + 1][radius * 2 + 1];
 
@@ -69,7 +70,10 @@ public final class NeoplasmDeathHeatmap {
 
     private static boolean isNeoplasm(Unit unit) {
         if (unit == null) return false;
-        if (unit.controller() instanceof NeoplasmAIController) return true;
+        var controller = unit.controller();
+        if (controller instanceof NeoplasmAIController
+                || controller instanceof NeoplasmFlyingAI
+                || controller instanceof NeoplasmGroundAI) return true;
 
         return unit.type == RUnitTypes.pallium
             || unit.type == RUnitTypes.miserable
@@ -82,12 +86,17 @@ public final class NeoplasmDeathHeatmap {
             || unit.type == RUnitTypes.matte;
     }
 
+    private static boolean isDeathHeatSuppressed(Unit unit) {
+        var controller = unit.controller();
+        if (controller instanceof NeoplasmAIController ai) return ai.ignoreDeathHeat;
+        if (controller instanceof NeoplasmFlyingAI ai) return ai.isIgnoringDeathHeat();
+        if (controller instanceof NeoplasmGroundAI ai) return ai.isIgnoringDeathHeat();
+        return false;
+    }
+
     private static void recordDeath(Unit unit) {
         if (!isNeoplasm(unit)) return;
-
-        // Only suppress intentional self-removal. The legacy 'ignore' flag is
-        // also used by combat AI (notably suicide bombers attacking buildings).
-        if (unit.controller() instanceof NeoplasmAIController ai && ai.ignoreDeathHeat) {
+        if (isDeathHeatSuppressed(unit)) {
             NeoplasmPerfMonitor.deathSuppressed();
             return;
         }
@@ -135,7 +144,7 @@ public final class NeoplasmDeathHeatmap {
         if (heat == null) return;
 
         revisions.put(team, revisions.get(team, 0) + 1);
-        long now = Time.millis();
+        float now = Time.time;
         for (int dy = -radius; dy <= radius; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 Tile tile = Vars.world.tile(center.x + dx, center.y + dy);
@@ -167,7 +176,7 @@ public final class NeoplasmDeathHeatmap {
 
             int index = tile.array();
             if (index < 0 || index >= heat.values.length) return 0f;
-            return readHeat(heat, index, Time.millis());
+            return readHeat(heat, index, Time.time);
         }finally{
             NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_HEAT, perfStart);
         }
@@ -176,6 +185,10 @@ public final class NeoplasmDeathHeatmap {
     /** Monotonic team-local version used to refresh cached strategic routes. */
     public static int getRevision(Team team) {
         return team == null ? 0 : revisions.get(team, 0);
+    }
+
+    private static void bumpRevision(Team team) {
+        if (team != null) revisions.put(team, revisions.get(team, 0) + 1);
     }
 
     /** Copies the current, time-decayed danger field into a reusable tile-sized array. */
@@ -188,43 +201,51 @@ public final class NeoplasmDeathHeatmap {
         }
 
         java.util.Arrays.fill(output, 0f);
-        long now = Time.millis();
+        float now = Time.time;
         int limit = Math.min(output.length, heat.values.length);
-        // Only visit cells that have received death heat. Most maps have a
-        // very sparse danger field, so avoid a pow() call for every world tile.
-        for(int i = heat.active.size - 1; i >= 0; i--){
+        boolean expiredAny = false;
+        for (int i = heat.active.size - 1; i >= 0; i--) {
             int index = heat.active.get(i);
-            if(index < 0 || index >= limit) continue;
+            if (index < 0 || index >= limit) {
+                if (index >= 0 && index < heat.tracked.length) heat.tracked[index] = false;
+                heat.active.removeIndex(i);
+                continue;
+            }
             float value = readHeat(heat, index, now);
-            if(value <= 0f){
+            if (value <= 0f) {
                 heat.tracked[index] = false;
                 heat.active.removeIndex(i);
-            }else{
+                expiredAny = true;
+            } else {
                 output[index] = value;
             }
         }
+        if (expiredAny) bumpRevision(team);
     }
 
-    private static float readHeat(HeatGrid heat, int index, long now) {
+    private static float readHeat(HeatGrid heat, int index, float now) {
         float value = heat.values[index];
         if (value <= 0f) return 0f;
 
-        long last = heat.updated[index];
-        if (last <= 0L) return value;
-
-        long elapsed = Math.max(0L, now - last);
-        if(elapsed < decayStepMillis / 2) return value;
-
-        int step = (int)((elapsed + decayStepMillis / 2) / decayStepMillis);
-        if(step >= maxDecaySteps){
-            value = 0f;
-        }else if(step > 0){
-            value *= decayFactors[step];
+        float last = heat.updated[index];
+        if (last <= 0f) {
+            heat.updated[index] = now;
+            return value;
         }
-        if(value < 0.25f) value = 0f;
 
+        float elapsed = now - last;
+        if (elapsed < decayStepTicks) return value;
+
+        int step = (int)(elapsed / decayStepTicks);
+        if (step >= maxDecaySteps) {
+            value = 0f;
+            heat.updated[index] = now;
+        } else {
+            value *= decayFactors[step];
+            heat.updated[index] = last + step * decayStepTicks;
+        }
+        if (value < 0.25f) value = 0f;
         heat.values[index] = value;
-        heat.updated[index] = now;
         return value;
     }
 
@@ -239,7 +260,7 @@ public final class NeoplasmDeathHeatmap {
 
     private static final class HeatGrid {
         final float[] values;
-        final long[] updated;
+        final float[] updated;
         final boolean[] tracked;
         final IntSeq active = new IntSeq();
 

@@ -18,6 +18,14 @@ import mindustry.world.Tile;
  */
 public class NeoplasmFlyingAI extends FlyingAI {
     private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+
+    public boolean isIgnoringDeathHeat() {
+        return deathMemory.ignoreDeathHeat;
+    }
+
+    public void setIgnoreDeathHeat(boolean ignore) {
+        deathMemory.ignoreDeathHeat = ignore;
+    }
     final static Rand rand = new Rand();
     final static BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
 
@@ -30,8 +38,9 @@ public class NeoplasmFlyingAI extends FlyingAI {
 
     @Override
     public Teamc findTarget(float x, float y, float range, boolean air, boolean ground) {
-        var result = findMainTarget(x, y, range, air, ground);
-        return checkTarget(result, x, y, range) ? target(x, y, range, air, ground) : result;
+        Teamc local = target(x, y, range, air, ground);
+        if (local != null) return local;
+        return findMainTarget(x, y, range, air, ground);
     }
 
     @Override
