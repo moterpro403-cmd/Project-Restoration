@@ -18,16 +18,16 @@ import mindustry.world.Tile;
 
 public class NeoplasmAIController extends AIController {
 
-    public Seq<Tile> DodgeTile = new Seq<>(); // death locations remembered by this controller
     public Seq<Unit> groups = new Seq<>();
-
-    // Per-controller nearby-unit memory, matching the PC implementation.
-    public ObjectSet<Unit> knownNeoplasms = new ObjectSet<>();
-    public Seq<Unit> neoplasmGroup = new Seq<>();
-    private final Seq<Unit> deadToRemove = new Seq<>();
 
     public boolean update;
     public boolean ignore;
+
+    /** Deaths are recorded globally by NeoplasmDeathHeatmap's UnitDestroyEvent hook. */
+    public void updateNeoplasmTracking() {
+        NeoplasmDeathHeatmap.init();
+    }
+
 
     /**
      * Updates this controller's nearby Neoplasm group and records deaths.
@@ -118,41 +118,91 @@ public class NeoplasmAIController extends AIController {
      * Finds the closest remembered death tile. The memory is shared across the
      * Neoplasm controller family, but each controller keeps its own group state.
      */
-    @Nullable
-    public Tile closestDanger() {
-        if (DodgeTile.isEmpty()) return null;
-        return DodgeTile.copy().sort(tile -> tile.dst(unit)).first();
+    /** Heat around a tile is shared by every Neoplasm unit on the same team. */
+    public float dangerDistance(Tile tile) {
+        return tile == null ? 0f : NeoplasmDeathHeatmap.getHeat(unit.team, tile);
     }
 
     /**
-     * Selects a nearby open land tile that is outside the remembered danger
-     * radius and remains biased toward the unit's original destination.
-     * Null means no safe alternative was found.
+     * Choose a nearby passable tile that makes progress while minimizing shared
+     * death heat. This is a soft cost, not a hard path block.
      */
-    /** Minimum distance from a tile to any remembered death location. */
-    public float dangerDistance(Tile tile) {
-        if (tile == null || DodgeTile.isEmpty()) return Float.MAX_VALUE;
+    @Nullable
+    public Tile getDodgeTarget(int pathTarget, Tile tile) {
+        if (tile == null || unit == null || RVars.pathfinderCustom == null) return null;
 
-        float nearest = Float.MAX_VALUE;
-        for (Tile danger : DodgeTile) {
-            if (danger != null) nearest = Math.min(nearest, danger.dst(tile));
+        var field = RVars.pathfinderCustom.getField(
+            unit.team, unit.type.flowfieldPathType, pathTarget
+        );
+        if (field == null || !field.initialized || !field.hasTargets()) return null;
+
+        int[] weights = field.hasComplete ? field.completeWeights : field.weights;
+        int current = tile.array();
+        if (current < 0 || current >= weights.length) return null;
+
+        Tile best = null;
+        float bestScore = Float.MAX_VALUE;
+        for (Point2 offset : Geometry.d8) {
+            Tile candidate = Vars.world.tile(tile.x + offset.x, tile.y + offset.y);
+            if (candidate == null) continue;
+
+            int index = candidate.array();
+            if (index < 0 || index >= weights.length || !field.passable(index)) continue;
+            if (offset.x != 0 && offset.y != 0) {
+                Tile horizontal = Vars.world.tile(tile.x + offset.x, tile.y);
+                Tile vertical = Vars.world.tile(tile.x, tile.y + offset.y);
+                if (horizontal == null || vertical == null
+                    || !field.passable(horizontal.array()) || !field.passable(vertical.array())) continue;
+            }
+
+            int progress = weights[index];
+            if (progress < 0 || progress >= weights[current]) continue;
+
+            float heat = NeoplasmDeathHeatmap.getHeat(unit.team, candidate);
+            float score = progress + heat * NeoplasmDeathHeatmap.pathHeatWeight;
+            if (score < bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
         }
-        return nearest;
+
+        float currentHeat = NeoplasmDeathHeatmap.getHeat(unit.team, tile);
+        if (currentHeat < 2f) return null;
+        return best;
     }
 
-    private boolean isNeoplasmUnit(Unit candidate) {
-        if (candidate == null) return false;
-        if (candidate.controller() instanceof NeoplasmAIController) return true;
+    /** Soft local detour for direct-movement flying and Hug-style units. */
+    protected boolean avoidNearbyDanger(Tile destination) {
+        if (destination == null || unit == null) return false;
+        Tile current = unit.tileOn();
+        if (current == null || NeoplasmDeathHeatmap.getHeat(unit.team, current) < 2f) return false;
 
-        // Include Neoplasm types that deliberately retain their stock Mindustry AI.
-        return candidate.type == RUnitTypes.pallium
-            || candidate.type == RUnitTypes.miserable
-            || candidate.type == RUnitTypes.hydroBomber
-            || candidate.type == RUnitTypes.kalyx
-            || candidate.type == RUnitTypes.mule
-            || candidate.type == RUnitTypes.worm
-            || candidate.type == RUnitTypes.blob
-            || candidate.type == RUnitTypes.squid;
+        Tile best = null;
+        float bestScore = Float.MAX_VALUE;
+        for (Point2 offset : Geometry.d8) {
+            Tile candidate = Vars.world.tile(current.x + offset.x, current.y + offset.y);
+            if (candidate == null || !unit.canPass(candidate.x, candidate.y)) continue;
+            if (offset.x != 0 && offset.y != 0) {
+                if (!unit.canPass(current.x + offset.x, current.y)
+                    || !unit.canPass(current.x, current.y + offset.y)) continue;
+            }
+
+            float progress = candidate.dst(destination);
+            float heat = NeoplasmDeathHeatmap.getHeat(unit.team, candidate);
+            float score = progress + heat * NeoplasmDeathHeatmap.directHeatWeight;
+            if (score < bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        if (best == null || best == current) return false;
+        float currentScore = current.dst(destination)
+            + NeoplasmDeathHeatmap.getHeat(unit.team, current) * NeoplasmDeathHeatmap.directHeatWeight;
+        if (bestScore >= currentScore) return false;
+
+        unit.movePref(vec.set(best.worldx(), best.worldy()).sub(unit).limit(unit.speed()));
+        return true;
     }
 
     @Nullable
@@ -218,7 +268,7 @@ public class NeoplasmAIController extends AIController {
      */
     @Nullable
     public Tile getDodgeTarget(int pathTarget, Tile tile) {
-        if (tile == null || DodgeTile.isEmpty() || RVars.pathfinderCustom == null) return null;
+        if (tile == null || RVars.pathfinderCustom == null) return null;
 
         var field = RVars.pathfinderCustom.getField(
             unit.team,
@@ -241,7 +291,7 @@ public class NeoplasmAIController extends AIController {
 
     @Nullable
     public Tile getEdgeEscapeTile() {
-        if (unit == null || DodgeTile.isEmpty()) return null;
+        if (unit == null) return null;
 
         Seq<Tile> candidates = new Seq<>();
         int radius = 15;
@@ -320,7 +370,7 @@ public class NeoplasmAIController extends AIController {
         );
         if (targetTile != null && tile != targetTile
             && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
-            if (DodgeTile.contains(targetTile)) targetTile = getClosestTarget(240);
+            if (NeoplasmDeathHeatmap.getHeat(unit.team, targetTile) > 2f) targetTile = getClosestTarget(240);
             if (targetTile != null) {
                 this.unit.movePref(vec.trns(
                     this.unit.angleTo(targetTile.worldx(), targetTile.worldy()),
