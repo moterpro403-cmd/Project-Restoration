@@ -89,6 +89,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         // mobile game with path searches.
         private float networkRepairTimer = 0f;
         private static final float networkRepairInterval = 180f;
+
+        // Each cord keeps its own expansion cooldown, independent of other cords.
+        private static final float cordGrowthInterval = 60f;
+        private float nextCordGrowthTime = -1f;
         
 
         public Seq<Tile> Queue = new Seq<>();
@@ -171,6 +175,13 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
+            // Throttle this cord only; never share the cooldown with the team.
+            if (nextCordGrowthTime >= 0f && Time.time < nextCordGrowthTime) {
+                grow = false;
+                return;
+            }
+            nextCordGrowthTime = Time.time + cordGrowthInterval;
+
             Tile origin = this.tile;
             if(origin == null || origin == Vars.emptyTile || Vars.world == null){
                 grow = false;
