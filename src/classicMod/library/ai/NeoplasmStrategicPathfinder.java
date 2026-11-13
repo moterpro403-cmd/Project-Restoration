@@ -346,40 +346,98 @@ public final class NeoplasmStrategicPathfinder {
         if(current.x < 0 || current.y < 0 || current.x >= width || current.y >= height) return null;
 
         float[] turret = getThreatField(team, width, height).risk;
-        float[] traffic = getTrafficField(team, width, height).density;
         int currentIndex = current.array();
         float currentHeat = NeoplasmDeathHeatmap.getHeat(team, current);
         float currentTurret = currentIndex >= 0 && currentIndex < turret.length ? turret[currentIndex] : 0f;
-        float currentScore = (float)Math.sqrt(
-            (double)(current.x - destination.x) * (current.x - destination.x)
-            + (double)(current.y - destination.y) * (current.y - destination.y)
-        ) + currentHeat * deathRiskWeight + currentTurret * turretRiskWeight
-            + traffic[currentIndex] * congestionWeight;
+        float currentRisk = currentHeat * deathRiskWeight + currentTurret * turretRiskWeight;
+        float currentDistance = current.dst(destination);
+
+        Tile normalNext = null;
+        float normalDistance = Float.POSITIVE_INFINITY;
+        float normalRisk = 0f;
+
+        // First identify the ordinary advancing step. A unit should not dodge
+        // unless that intended step actually enters a remembered danger zone.
+        for(Point2 offset : Geometry.d8){
+            int nx = current.x + offset.x, ny = current.y + offset.y;
+            if(nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            Tile next = Vars.world.tile(nx, ny);
+            if(next == null) continue;
+
+            float distance = next.dst(destination);
+            if(distance + 0.001f >= currentDistance || distance >= normalDistance) continue;
+
+            int index = next.array();
+            float heat = NeoplasmDeathHeatmap.getHeat(team, next);
+            float risk = (index >= 0 && index < turret.length ? turret[index] : 0f) * turretRiskWeight
+                + heat * deathRiskWeight;
+            normalNext = next;
+            normalDistance = distance;
+            normalRisk = risk;
+        }
+
+        // No nearby risk on either the current tile or the normal approach:
+        // leave native FlyingAI in control. This prevents traffic from causing
+        // constant lateral wandering around otherwise safe targets.
+        if(currentRisk < localTurretThreshold && normalRisk < localTurretThreshold) return null;
 
         Tile best = null;
-        float bestScore = currentScore;
+        float bestScore = Float.POSITIVE_INFINITY;
+        float bestRisk = Float.POSITIVE_INFINITY;
+        float emergencyDrop = Math.max(2f, currentRisk * 0.20f);
+        boolean emergency = currentRisk >= 8f;
+
         for(Point2 offset : Geometry.d8){
             int nx = current.x + offset.x, ny = current.y + offset.y;
             if(nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
             Tile next = Vars.world.tile(nx, ny);
             if(next == null || next == current) continue;
 
+            float distance = next.dst(destination);
             int index = next.array();
             float heat = NeoplasmDeathHeatmap.getHeat(team, next);
-            float risk = index >= 0 && index < turret.length ? turret[index] : 0f;
-            float distance = (float)Math.sqrt(
-                (double)(nx - destination.x) * (nx - destination.x)
-                + (double)(ny - destination.y) * (ny - destination.y)
-            );
-            float tie = ((unitId * 31 + index * 17) & 7) * 0.015625f;
-            float score = distance + heat * deathRiskWeight + risk * turretRiskWeight
-                + traffic[index] * congestionWeight + tie;
-            if(score + 0.05f < bestScore){
+            float risk = (index >= 0 && index < turret.length ? turret[index] : 0f) * turretRiskWeight
+                + heat * deathRiskWeight;
+
+            // Normal detours must continue closing on the target. Only a unit
+            // already in a severe danger pocket may take one short escape step.
+            boolean advances = distance + 0.01f < currentDistance;
+            boolean escapes = emergency
+                && distance <= currentDistance + 1.5f
+                && risk <= currentRisk - emergencyDrop;
+            if(!advances && !escapes) continue;
+
+            // Congestion is deliberately tiny: it may choose between nearly
+            // equal safe advancing steps, but can never pull a unit sideways
+            // just because its current tile is occupied.
+            float score = distance + risk + Math.min(4f, getTrafficDensity(team, index)) * 0.04f;
+            if(score < bestScore){
                 bestScore = score;
                 best = next;
+                bestRisk = risk;
             }
         }
+
+        if(best == null) return null;
+
+        if(emergency){
+            // Leave the danger pocket only when the next tile is meaningfully safer.
+            if(bestRisk <= currentRisk - emergencyDrop) return best;
+            return null;
+        }
+
+        if(normalNext == null) return null;
+        float normalScore = normalDistance + normalRisk;
+        if(best == normalNext || bestRisk + 0.5f >= normalRisk || bestScore + 0.25f >= normalScore){
+            return null;
+        }
         return best;
+    }
+
+    private static float getTrafficDensity(Team team, int index){
+        if(index < 0) return 0f;
+        // Reuse the already sampled field; congestion is only a small tie-break.
+        return getTrafficField(team, Vars.world.width(), Vars.world.height()).density[index];
     }
 
     /**
