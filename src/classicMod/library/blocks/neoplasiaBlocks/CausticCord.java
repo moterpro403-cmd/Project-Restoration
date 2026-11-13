@@ -311,7 +311,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         @Override
         public void updateBeat() {
             boolean cordMode = true;
-            if (grow && !reset) { //TODO some AI strategy block
+            if (grow) { //TODO some AI strategy block
                 if (
                         (items.has(Items.beryllium) &&
                         left() == null &&
@@ -319,8 +319,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         ||
                                 (getTotal(Items.beryllium, 3) >= 3)
                 ){
-                    if (Mathf.chance(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
-                    else if (Mathf.chance(0.5f)) ReplaceTo(RBlocks.walkySpawner);
+                    if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
+                    else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.walkySpawner);
                     else ReplaceTo(RBlocks.oxideCrafter);
                     cordMode = false;
                 }
@@ -333,7 +333,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.graphite, 3) >= 3))
 
                 ){
-                    if (Mathf.chance(0.5f)) ReplaceTo(RBlocks.muleSpawner);
+                    if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
                     else ReplaceTo(RBlocks.squidSpawner);
                     cordMode = false;
                 }
@@ -361,43 +361,38 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 640f, u -> u.type.killable && u.type.hittable) != null) ||
-                        (Units.findEnemyTile(team, x, y, 640f, b -> b.isValid() && (
-                                b instanceof Turret.TurretBuild turretBuild)
+                if ((Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
+                        (Units.findEnemyTile(team, x, y, 440f, b -> b.isValid() && (
+                                b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 200f)
                         ) != null)) {
-                    boolean tooClose = Units.closestBuilding(team, x, y, 240f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.pore)) != null;
+                    boolean tooClose = Units.closestBuilding(team, x, y, 440f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.pore)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.pore);
                         cordMode = false;
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable) != null) ||
+                if ((Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
                         (Units.findEnemyTile(team, x, y, 140f, b -> b.isValid() && (
-                                b instanceof Turret.TurretBuild turretBuild)
+                                b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 80f)
                         ) != null)) {
-                    boolean tooClose = Units.closestBuilding(team, x, y, 115f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.bloom)) != null;
+                    boolean tooClose = Units.closestBuilding(team, x, y, 120f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.bloom)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.bloom);
                         cordMode = false;
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 30f, u -> u.type.killable && u.type.hittable) != null) ||
+                if ((Units.closestEnemy(team, x, y, 30f, u -> u.type.killable && u.type.hittable && u.range() > 30f) != null) ||
                         (Units.findEnemyTile(team, x, y, 30f, b -> b.isValid() && (
-                                b instanceof Turret.TurretBuild turretBuild)
+                                b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 30f)
                         ) != null)) {
-                    boolean tooClose = Units.closestBuilding(team, x, y, 15f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.tole)) != null;
+                    boolean tooClose = Units.closestBuilding(team, x, y, 30f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.tole)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.tole);
                         cordMode = false;
                     }
                 } if (cordMode) growCord(RBlocks.cord);
-            }
-            if (reset){
-                ready = alreadyBeat = grow = false;
-                beatTimer = 0f;
-                reset = false;
             }
             super.updateBeat();
         }
@@ -427,8 +422,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         public void coverQueue(Block cordPlacement){
             for (var tile : Queue){
-                if (tile.build == null || tile.build instanceof CausticCord.CordBuild) {
-                    tile.setBlock(cordPlacement, team, 0);
+                if ((tile.build == null || tile.build instanceof CausticCord.CordBuild)) {
+                    tile.setBlock(cordPlacement, team, rotation);
                     Queue.remove(tile);
                 }
             }
@@ -548,15 +543,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
             int bit = 0;
             for (int i = 0; i < 8; i++){
-                // Get the neighboring tile using Geometry.d8(i)
-                Tile neighborTile = Vars.world.tile(tile.x + Geometry.d8(i).x, tile.y + Geometry.d8(i).y);
-
-                // Check if the neighboring tile exists and contains a NeoplasmBuilding
-                if (neighborTile != null && neighborTile.build instanceof NeoplasmBuilding neoplasmBuilding) {
-                    // Set the corresponding bit for the neighbor
-                    bit |= 1 << i;
+                Tile mask = Vars.world.tile(tile.x + Geometry.d8(i).x, tile.y + Geometry.d8(i).y);
+                if (mask != null && mask.build instanceof NeoplasmBuilding neoplasmBuilding) {
+                    bit |= 1 << (i);
                     neoplasmBuilding.ready = neoplasmBuilding.alreadyBeat = neoplasmBuilding.grow = false;
-                    neoplasmBuilding.reset = true;
                     neoplasmBuilding.beatTimer = 0f;
                 }
             }
