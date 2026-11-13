@@ -1,5 +1,6 @@
 package classicMod.library.ai;
 
+import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
 import mindustry.ai.Pathfinder;
@@ -7,6 +8,7 @@ import mindustry.ai.types.HugAI;
 import mindustry.core.World;
 import mindustry.entities.Sized;
 import mindustry.gen.Building;
+import mindustry.gen.Teamc;
 import mindustry.gen.Unit;
 import mindustry.world.Tile;
 
@@ -28,6 +30,16 @@ public class NeoplasmHugAI extends HugAI {
         if (!deathMemory.applyDodgePathfind(pathTarget)) {
             super.pathfind(pathTarget);
         }
+    }
+
+    @Override
+    public Teamc findMainTarget(float x, float y, float range, boolean air, boolean ground) {
+        Building enemyCore = unit.closestEnemyCore();
+        Teamc nearby = target(x, y, range, air, ground);
+        if (enemyCore != null && Mathf.within(x, y, enemyCore.x, enemyCore.y, range)) {
+            return enemyCore;
+        }
+        return nearby != null ? nearby : enemyCore;
     }
 
     @Override
