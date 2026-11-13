@@ -238,9 +238,7 @@ public class NeoplasmBlock extends Block {
         }
 
                 public void growCord(Block block){
-            // CordBuild applies its own, faster team-wide cord timer before
-            // choosing a path. Keep this shared budget for hearts and spawners.
-            if (!isCord && !NeoplasmGrowthLimiter.allowExpansion(team)) {
+            if (!NeoplasmGrowthLimiter.allowExpansion(team)) {
                 grow = false;
                 return;
             }
