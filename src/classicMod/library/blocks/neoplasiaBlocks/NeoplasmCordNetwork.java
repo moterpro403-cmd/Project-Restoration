@@ -12,6 +12,9 @@ import mindustry.world.blocks.environment.Prop;
 import mindustry.world.blocks.environment.SteamVent;
 import mindustry.content.Blocks;
 
+import java.util.ArrayDeque;
+import java.util.HashSet;
+
 /**
  * Tracks which Neoplasm buildings are physically connected to a Heart and
  * lets disconnected cord segments lay a short, safe route back to the network.
@@ -28,6 +31,11 @@ public final class NeoplasmCordNetwork {
     private static int worldWidth = -1;
     private static int worldHeight = -1;
     private static float nextScan = -1f;
+    private static float nextRepair = -1f;
+    private static final float repairInterval = 12f;
+    private static final int maxPendingRepairs = 512;
+    private static final ArrayDeque<RepairRequest> pendingRepairs = new ArrayDeque<>();
+    private static final HashSet<Long> repairKeys = new HashSet<>();
 
     private NeoplasmCordNetwork(){
     }
@@ -44,6 +52,8 @@ public final class NeoplasmCordNetwork {
             worldWidth = width;
             worldHeight = height;
         }
+
+        processRepairs();
 
         if(nextScan >= 0f && Time.time < nextScan) return;
         nextScan = Time.time + scanInterval;
@@ -88,6 +98,41 @@ public final class NeoplasmCordNetwork {
         }
 
         connectedTiles = fresh;
+    }
+
+    /** Queue a repair request; actual path searches are globally throttled. */
+    public static void requestReconnect(Tile start, Team team, int maxRadius){
+        if(Vars.world == null || Vars.net.client() || start == null || team == null) return;
+        if(isConnected(team, start) || pendingRepairs.size() >= maxPendingRepairs) return;
+        long key = ((long)team.id << 32) ^ (start.array() & 0xffffffffL);
+        if(repairKeys.add(key)){
+            pendingRepairs.addLast(new RepairRequest(start, team, maxRadius, key));
+        }
+    }
+
+    private static void processRepairs(){
+        if(pendingRepairs.isEmpty() || (nextRepair >= 0f && Time.time < nextRepair)) return;
+        nextRepair = Time.time + repairInterval;
+
+        RepairRequest request = pendingRepairs.pollFirst();
+        if(request == null) return;
+        repairKeys.remove(request.key);
+
+        if(request.start == null || request.team == null || isConnected(request.team, request.start)) return;
+        tryReconnect(request.start, request.team, request.maxRadius);
+    }
+
+    private static final class RepairRequest{
+        final Tile start;
+        final Team team;
+        final int maxRadius;
+        final long key;
+        RepairRequest(Tile start, Team team, int maxRadius, long key){
+            this.start = start;
+            this.team = team;
+            this.maxRadius = maxRadius;
+            this.key = key;
+        }
     }
 
     /** Whether a tile belongs to a component physically connected to a Heart. */
@@ -214,5 +259,8 @@ public final class NeoplasmCordNetwork {
         worldWidth = -1;
         worldHeight = -1;
         nextScan = -1f;
+        nextRepair = -1f;
+        pendingRepairs.clear();
+        repairKeys.clear();
     }
 }

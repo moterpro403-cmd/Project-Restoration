@@ -10,9 +10,7 @@ import mindustry.world.Tile;
 import mindustry.world.blocks.defense.turrets.Turret;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.PriorityQueue;
 
 /**
  * Team-wide, destination-specific route field that combines terrain cost,
@@ -22,13 +20,18 @@ import java.util.PriorityQueue;
  * destination, so many units can share the same learned route.
  */
 public final class NeoplasmStrategicPathfinder {
-    private static final long refreshMillis = 4500L;
+    // Full route maps are expensive on mobile. Rebuild at a fixed interval,
+    // not once for every unit death recorded by the heat map.
+    private static final long refreshMillis = 10000L;
     private static final float deathRiskWeight = 0.48f;
     private static final float turretRiskWeight = 1f;
     private static final float turretPower = 24f;
     private static final int maxTurretRadius = 128;
 
     private static final HashMap<Long, RouteField> fields = new HashMap<>();
+    private static final HashMap<Integer, ThreatField> threatFields = new HashMap<>();
+    private static Object threatWorld;
+    private static int threatWidth = -1, threatHeight = -1;
 
     private NeoplasmStrategicPathfinder(){
     }
@@ -47,14 +50,12 @@ public final class NeoplasmStrategicPathfinder {
     /** Route to a specific building, used by direct-movement flying AI. */
     public static Tile nextStepTo(Tile current, Tile destination, Team team, int costType){
         if(current == null || destination == null || team == null || Vars.world == null
-            || RVars.pathfinderCustom == null || current == destination || destination.array() < 0) return null;
+            || current == destination || destination.array() < 0) return null;
 
-        PathfinderCustom.Flowfield base = RVars.pathfinderCustom.getField(team, costType, PathfinderCustom.fieldCore);
-        if(base == null || !base.initialized || base.resolution != 1) return null;
-
-        long key = key(team, costType, destination.array(), true, false);
-        RouteField route = getOrBuild(key, team, base, new int[]{destination.array()}, true);
-        return chooseNext(current, base, route);
+        // Flying units often select different buildings as targets. A full
+        // Dijkstra build for every target creates thousands of large route fields.
+        // Use the shared threat map and score only the eight immediate moves.
+        return chooseLocalSafeStep(current, destination, team);
     }
 
     private static long key(Team team, int costType, int target, boolean position, boolean air){
@@ -74,14 +75,18 @@ public final class NeoplasmStrategicPathfinder {
         RouteField cached = fields.get(key);
         if(cached != null && cached.base == base
             && cached.width == base.width && cached.height == base.height
-            && cached.heatRevision == revision
             && cached.targetHash == targetHash
             && now - cached.builtAt < refreshMillis){
             return cached;
         }
 
         RouteField rebuilt = build(team, base, explicitTargets, targetHash, revision, now);
-        if(rebuilt != null) fields.put(key, rebuilt);
+        if(rebuilt != null){
+            // Route keys are few for normal core movement, but cap stale
+            // destinations so a long match cannot retain unbounded map arrays.
+            if(fields.size() >= 12 && !fields.containsKey(key)) fields.clear();
+            fields.put(key, rebuilt);
+        }
         return rebuilt;
     }
 
@@ -107,20 +112,12 @@ public final class NeoplasmStrategicPathfinder {
             || RVars.pathfinderCustom.tiles.length < Vars.world.width() * Vars.world.height()) return null;
 
         float[] heat = new float[length];
-        float[] turret = new float[length];
         NeoplasmDeathHeatmap.copyHeat(team, heat);
-        buildTurretRisk(team, turret, width, height);
+        float[] turret = getThreatField(team, width, height).risk;
 
         float[] distance = new float[length];
         Arrays.fill(distance, Float.POSITIVE_INFINITY);
-        PriorityQueue<Node> frontier = new PriorityQueue<>(11, new Comparator<Node>() {
-            @Override
-            public int compare(Node first, Node second){
-                if(first.cost < second.cost) return -1;
-                if(first.cost > second.cost) return 1;
-                return 0;
-            }
-        });
+        IndexHeap frontier = new IndexHeap(length, distance);
 
         if(explicitTargets != null){
             for(int target : explicitTargets) addTarget(target, base, distance, frontier);
@@ -137,9 +134,8 @@ public final class NeoplasmStrategicPathfinder {
         final int[] dy = {1, 0, -1, 0, 1, -1, -1, 1};
 
         while(!frontier.isEmpty()){
-            Node node = frontier.poll();
-            int index = node.index;
-            if(node.cost != distance[index]) continue;
+            int index = frontier.pop();
+            float nodeCost = distance[index];
 
             int x = index % width;
             int y = index / width;
@@ -165,20 +161,20 @@ public final class NeoplasmStrategicPathfinder {
                 float risk = heat[tileIndex] * deathRiskWeight
                     + turret[tileIndex] * turretRiskWeight;
                 float step = (terrain + risk) * (dx[d] != 0 && dy[d] != 0 ? 1.41421356f : 1f);
-                float candidate = node.cost + step;
+                float candidate = nodeCost + step;
 
                 if(candidate + 0.001f < distance[next]){
                     distance[next] = candidate;
-                    frontier.add(new Node(next, candidate));
+                    frontier.addOrDecrease(next);
                 }
             }
         }
 
-        return new RouteField(base, width, height, distance, heat, turret, revision, targetHash, now);
+        return new RouteField(base, width, height, distance, revision, targetHash, now);
     }
 
     private static void addTarget(int tileArray, PathfinderCustom.Flowfield base,
-                                  float[] distance, PriorityQueue<Node> frontier){
+                                  float[] distance, IndexHeap frontier){
         if(tileArray < 0 || tileArray >= Vars.world.width() * Vars.world.height()) return;
         Tile tile = Vars.world.tile(tileArray % Vars.world.width(), tileArray / Vars.world.width());
         if(tile == null) return;
@@ -189,7 +185,7 @@ public final class NeoplasmStrategicPathfinder {
         if(!base.passable(index)) return;
         if(distance[index] > 0f){
             distance[index] = 0f;
-            frontier.add(new Node(index, 0f));
+            frontier.addOrDecrease(index);
         }
     }
 
@@ -271,37 +267,175 @@ public final class NeoplasmStrategicPathfinder {
         return Vars.world.tile(strategicIndex % route.width, strategicIndex / route.width);
     }
 
+    /** Shared turret exposure map; one full-world scan serves all flyers and route builds. */
+    private static ThreatField getThreatField(Team team, int width, int height){
+        long now = Time.millis();
+        if(threatWorld != Vars.world || threatWidth != width || threatHeight != height){
+            threatFields.clear();
+            threatWorld = Vars.world;
+            threatWidth = width;
+            threatHeight = height;
+        }
+
+        int teamId = team.id;
+        ThreatField cached = threatFields.get(teamId);
+        if(cached != null && now - cached.builtAt < refreshMillis) return cached;
+
+        float[] risk = new float[width * height];
+        buildTurretRisk(team, risk, width, height);
+        ThreatField rebuilt = new ThreatField(risk, now);
+        threatFields.put(teamId, rebuilt);
+        return rebuilt;
+    }
+
+    /** Cheap local steering for flyers: no per-building full-map Dijkstra. */
+    private static Tile chooseLocalSafeStep(Tile current, Tile destination, Team team){
+        int width = Vars.world.width(), height = Vars.world.height();
+        if(current.x < 0 || current.y < 0 || current.x >= width || current.y >= height) return null;
+
+        float[] turret = getThreatField(team, width, height).risk;
+        int currentIndex = current.array();
+        float currentHeat = NeoplasmDeathHeatmap.getHeat(team, current);
+        float currentTurret = currentIndex >= 0 && currentIndex < turret.length ? turret[currentIndex] : 0f;
+        float currentScore = (float)Math.sqrt(
+            (double)(current.x - destination.x) * (current.x - destination.x)
+            + (double)(current.y - destination.y) * (current.y - destination.y)
+        ) + currentHeat * deathRiskWeight + currentTurret * turretRiskWeight;
+
+        Tile best = null;
+        float bestScore = currentScore;
+        for(Point2 offset : Geometry.d8){
+            int nx = current.x + offset.x, ny = current.y + offset.y;
+            if(nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            Tile next = Vars.world.tile(nx, ny);
+            if(next == null || next == current) continue;
+
+            int index = next.array();
+            float heat = NeoplasmDeathHeatmap.getHeat(team, next);
+            float risk = index >= 0 && index < turret.length ? turret[index] : 0f;
+            float distance = (float)Math.sqrt(
+                (double)(nx - destination.x) * (nx - destination.x)
+                + (double)(ny - destination.y) * (ny - destination.y)
+            );
+            float score = distance + heat * deathRiskWeight + risk * turretRiskWeight;
+            if(score + 0.05f < bestScore){
+                bestScore = score;
+                best = next;
+            }
+        }
+        return best;
+    }
+
+    private static final class ThreatField{
+        final float[] risk;
+        final long builtAt;
+        ThreatField(float[] risk, long builtAt){
+            this.risk = risk;
+            this.builtAt = builtAt;
+        }
+    }
+
     private static final class RouteField{
         final PathfinderCustom.Flowfield base;
         final int width, height;
-        final float[] distance, heat, turret;
+        final float[] distance;
         final int heatRevision, targetHash;
         final long builtAt;
 
         RouteField(PathfinderCustom.Flowfield base, int width, int height, float[] distance,
-                   float[] heat, float[] turret, int heatRevision, int targetHash, long builtAt){
+                   int heatRevision, int targetHash, long builtAt){
             this.base = base;
             this.width = width;
             this.height = height;
             this.distance = distance;
-            this.heat = heat;
-            this.turret = turret;
             this.heatRevision = heatRevision;
             this.targetHash = targetHash;
             this.builtAt = builtAt;
         }
     }
 
-    private static final class Node{
-        final int index;
-        final float cost;
-        Node(int index, float cost){
-            this.index = index;
-            this.cost = cost;
+    /**
+     * Indexed binary min-heap. Each tile appears at most once, so the
+     * full-map Dijkstra pass avoids allocating a Node object per relaxation.
+     */
+    private static final class IndexHeap{
+        private final int[] heap;
+        private final int[] positions;
+        private final float[] priorities;
+        private int size;
+
+        IndexHeap(int capacity, float[] priorities){
+            heap = new int[capacity];
+            positions = new int[capacity];
+            Arrays.fill(positions, -1);
+            this.priorities = priorities;
+        }
+
+        boolean isEmpty(){
+            return size == 0;
+        }
+
+        void addOrDecrease(int index){
+            int position = positions[index];
+            if(position == -2) return;
+            if(position < 0){
+                int at = size++;
+                heap[at] = index;
+                positions[index] = at;
+                siftUp(at);
+            }else{
+                siftUp(position);
+            }
+        }
+
+        int pop(){
+            int result = heap[0];
+            positions[result] = -2;
+            int last = heap[--size];
+            if(size > 0){
+                heap[0] = last;
+                positions[last] = 0;
+                siftDown(0);
+            }
+            return result;
+        }
+
+        private void siftUp(int at){
+            while(at > 0){
+                int parent = (at - 1) >>> 1;
+                if(priorities[heap[parent]] <= priorities[heap[at]]) break;
+                swap(parent, at);
+                at = parent;
+            }
+        }
+
+        private void siftDown(int at){
+            while(true){
+                int left = at * 2 + 1;
+                if(left >= size) return;
+                int right = left + 1;
+                int smallest = right < size && priorities[heap[right]] < priorities[heap[left]]
+                    ? right : left;
+                if(priorities[heap[at]] <= priorities[heap[smallest]]) return;
+                swap(at, smallest);
+                at = smallest;
+            }
+        }
+
+        private void swap(int first, int second){
+            int a = heap[first], b = heap[second];
+            heap[first] = b;
+            heap[second] = a;
+            positions[a] = second;
+            positions[b] = first;
         }
     }
 
     public static void clear(){
         fields.clear();
+        threatFields.clear();
+        threatWorld = null;
+        threatWidth = -1;
+        threatHeight = -1;
     }
 }

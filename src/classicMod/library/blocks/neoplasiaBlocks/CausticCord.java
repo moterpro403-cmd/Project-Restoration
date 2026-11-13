@@ -273,7 +273,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 networkRepairTimer += delta();
                 if (networkRepairTimer >= networkRepairInterval) {
                     networkRepairTimer = 0f;
-                    NeoplasmCordNetwork.tryReconnect(tile, team, 24);
+                    NeoplasmCordNetwork.requestReconnect(tile, team, 24);
                 }
             } else {
                 networkRepairTimer = 0f;
