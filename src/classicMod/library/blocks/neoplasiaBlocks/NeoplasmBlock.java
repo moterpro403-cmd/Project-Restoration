@@ -366,15 +366,22 @@ public class NeoplasmBlock extends Block {
         }
 
         public void takeBlood(){
-            for(int i = 0; i <proximity.size; ++i) {
-                Building other = proximity.get((i) % proximity.size);
-                if (other instanceof NeoplasmBuilding neoplasmBuilding) {
-                    if (!source && !neoplasmBuilding.deathImminent() && liquids.get(blood) < liquidCapacity) {
-                        float amount = Math.min(liquidCapacity, neoplasmBuilding.liquids.get(blood));
-                        neoplasmBuilding.liquids.remove(blood, amount);
-                        liquids.add(blood, amount);
-                    }
-                }
+            if(source || liquids.get(blood) >= liquidCapacity) return;
+
+            for(int i = 0; i < proximity.size; ++i) {
+                Building other = proximity.get(i);
+                if(!(other instanceof NeoplasmBuilding neoplasmBuilding)
+                    || neoplasmBuilding.team != team || neoplasmBuilding.deathImminent()) continue;
+
+                // Clamp transfer to both the donor's available blood and this
+                // building's remaining capacity. Never siphon from enemy tissue.
+                float freeCapacity = Math.max(0f, liquidCapacity - liquids.get(blood));
+                float amount = Math.min(freeCapacity, neoplasmBuilding.liquids.get(blood));
+                if(amount <= 0f) continue;
+
+                neoplasmBuilding.liquids.remove(blood, amount);
+                liquids.add(blood, amount);
+                if(liquids.get(blood) >= liquidCapacity) break;
             }
         }
 
