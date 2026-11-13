@@ -380,10 +380,10 @@ public class NeoplasmBlock extends Block {
             // Maintain a team-wide map of Neoplasm buildings connected to a Heart.
             NeoplasmCordNetwork.update();
 
-            // A cord outside the Heart-connected component must not self-destruct
-            // while its repair logic is trying to reconnect it.
-            if (this instanceof CausticCord.CordBuild && grown
-                && !NeoplasmCordNetwork.isConnected(team, tile)) {
+            // Cords are maintained by the network manager, not by fragile visual
+            // pulse timing. Keep all mature cord segments alive; disconnected ones
+            // are actively repaired by CordBuild instead of exploding.
+            if (this instanceof CausticCord.CordBuild && grown) {
                 previousBeat = 0f;
                 deathTimer = 0f;
             }
