@@ -10,6 +10,7 @@ import classicMod.content.RUnitTypes;
 import classicMod.content.RBlocks;
 import classicMod.library.ai.PathfinderExtended;
 import mindustry.Vars;
+import mindustry.ui.Bar;
 import mindustry.content.*;
 import mindustry.entities.*;
 import mindustry.game.Team;
