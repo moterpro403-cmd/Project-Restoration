@@ -1,0 +1,8 @@
+displayName: "Project: Restoration"
+name: "restored-mind"
+author: "VvSeanGtvV"
+main: "classicMod.ClassicMod"
+description: "Mindustry builds including classic ones added to Mindustry v8!"
+version: "0.6.5-beta-neoplasm-expansion"
+minGameVersion: "160.7"
+java: true
