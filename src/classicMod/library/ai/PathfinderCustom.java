@@ -426,14 +426,16 @@ public class PathfinderCustom implements Runnable {
         if (currentIndex < 0 || currentIndex >= values.length) return tile;
 
         int currentWeight = values[currentIndex];
-        Tile bestPathStep = null;
-        int bestPathWeight = Integer.MAX_VALUE;
-
-        Tile bestEscapeStep = null;
+        Tile bestProgress = null;
+        int bestWeight = Integer.MAX_VALUE;
+        float bestProgressClearance = -1f;
+        Tile bestEscape = null;
         float currentClearance = nearestDangerDistance(tile, dangerTile);
-        float bestClearance = currentClearance;
+        float bestEscapeClearance = currentClearance;
+        final float safeRadius = 56f;
 
-        // Check only immediate neighbors so movement cannot skip across walls.
+        // Only inspect adjacent tiles. This prevents movement through walls and
+        // prevents diagonal corner-cutting around narrow structures.
         for (Point2 point : Geometry.d8) {
             int dx = tile.x + point.x;
             int dy = tile.y + point.y;
@@ -443,34 +445,38 @@ public class PathfinderCustom implements Runnable {
             int packed = Vars.world.packArray(dx, dy);
             if (packed < 0 || packed >= values.length || !path.passable(packed)) continue;
 
-            // Reject diagonal corner cutting.
             if (point.x != 0 && point.y != 0) {
                 int horizontal = Vars.world.packArray(tile.x + point.x, tile.y);
                 int vertical = Vars.world.packArray(tile.x, tile.y + point.y);
-                if (!path.passable(horizontal) || !path.passable(vertical)) continue;
+                if (horizontal < 0 || vertical < 0 || horizontal >= values.length
+                    || vertical >= values.length || !path.passable(horizontal) || !path.passable(vertical)) continue;
             }
 
             float clearance = nearestDangerDistance(other, dangerTile);
-            if (clearance <= 40f) continue;
 
-            // Prefer the safest neighbor that still makes progress toward the
-            // flowfield target.
-            if (values[packed] >= 0 && values[packed] < currentWeight
-                && values[packed] < bestPathWeight) {
-                bestPathStep = other;
-                bestPathWeight = values[packed];
+            // Prefer a safe step that still advances the normal flowfield.
+            if (clearance >= safeRadius && values[packed] >= 0 && values[packed] < currentWeight) {
+                if (values[packed] < bestWeight
+                    || (values[packed] == bestWeight && clearance > bestProgressClearance)) {
+                    bestProgress = other;
+                    bestWeight = values[packed];
+                    bestProgressClearance = clearance;
+                }
             }
 
-            // If every route-progress step is blocked by the danger radius,
-            // move outward first. The next tick will try to rejoin the field.
-            if (clearance > bestClearance) {
-                bestEscapeStep = other;
-                bestClearance = clearance;
+            // If danger blocks progress, escape in the direction with the
+            // greatest increase in clearance. Flowfield progress breaks ties.
+            if (clearance > bestEscapeClearance + 0.25f) {
+                bestEscape = other;
+                bestEscapeClearance = clearance;
+            } else if (bestEscape != null && Math.abs(clearance - bestEscapeClearance) <= 0.25f
+                && values[packed] >= 0 && values[packed] < values[bestEscape.array()]) {
+                bestEscape = other;
             }
         }
 
-        if (bestPathStep != null) return bestPathStep;
-        if (bestEscapeStep != null && bestClearance > currentClearance) return bestEscapeStep;
+        if (bestProgress != null) return bestProgress;
+        if (bestEscape != null && bestEscapeClearance > currentClearance) return bestEscape;
         return tile;
     }
 
