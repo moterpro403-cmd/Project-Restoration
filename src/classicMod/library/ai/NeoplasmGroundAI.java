@@ -8,7 +8,7 @@ import mindustry.ai.types.GroundAI;
  * chokepoint avoidance and death-heatmap routing.
  */
 public class NeoplasmGroundAI extends GroundAI {
-    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    protected final NeoplasmAIController deathMemory = new NeoplasmAIController();
 
     public boolean isIgnoringDeathHeat() {
         return deathMemory.ignoreDeathHeat;

@@ -393,13 +393,14 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         ||
                                 (getTotal(Items.beryllium, 3) >= 5)
                 ){
-                    if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
+                    if (Mathf.chance(0.18f)) ReplaceTo(RBlocks.scolopendraSpawner);
+                    else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.walkySpawner);
                     else ReplaceTo(RBlocks.oxideCrafter);
                     cordMode = false;
                 }
 
-                if (
+                if (cordMode && (
                         (items.has(Items.graphite) &&
                         left() == null &&
                         right() == null)
@@ -407,13 +408,15 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.graphite, 3) >= 5))
 
                 ){
-                    if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
+                    if ((items.has(Items.oxide) || getTotal(Items.oxide, 3) >= 5)
+                            && Mathf.chance(0.12f)) ReplaceTo(RBlocks.polyctenidSpawner);
+                    else if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
                     else ReplaceTo(RBlocks.squidSpawner);
                     cordMode = false;
                 }
 
-                if (
+                if (cordMode && (
                         (items.has(Items.oxide) &&
                         left() == null &&
                         right() == null)
@@ -421,12 +424,13 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.oxide, 3) >= 5))
                 ){
 
-                    if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
+                    if (Mathf.chance(0.15f)) ReplaceTo(RBlocks.mycelidSpawner);
+                    else if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
                     else ReplaceTo(RBlocks.hydroBomberSpawner);
                     cordMode = false;
                 }
 
-                if ((Units.closestEnemy(team, x, y, 220f, u -> u.type.killable && u.type.hittable && u.isGrounded()) != null)) {
+                if (cordMode && (Units.closestEnemy(team, x, y, 220f, u -> u.type.killable && u.type.hittable && u.isGrounded()) != null)) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 60f, b -> (b.block == RBlocks.neoplasiaBomb)) != null;
                     if (!tooClose &&
                             left() == null &&
@@ -437,7 +441,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
+                if (cordMode && (Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
                         (Units.findEnemyTile(team, x, y, 440f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 200f)
                         ) != null)) {
@@ -448,7 +452,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
+                if (cordMode && (Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
                         (Units.findEnemyTile(team, x, y, 140f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 80f)
                         ) != null)) {

@@ -16,6 +16,7 @@ import mindustry.Vars;
 import mindustry.ai.types.*;
 import mindustry.content.*;
 import mindustry.entities.bullet.*;
+import mindustry.entities.abilities.StatusFieldAbility;
 import mindustry.entities.part.*;
 import mindustry.entities.pattern.ShootPattern;
 import mindustry.gen.*;
@@ -68,7 +69,7 @@ public class RUnitTypes {
 
     mantis, // TESTING
 
-    blob, matte, squid, worm, mule, kalyx, hydroBomber, miserable, pallium, siegeCrawler, sporeCarrier, // NEOPLASM / PHASE 3
+    blob, matte, squid, worm, mule, kalyx, hydroBomber, miserable, pallium, siegeCrawler, sporeCarrier, polyctenid, scolopendra, mycelid, // NEOPLASM / PHASE 3
 
     alphaChan, crawlerChan, boulderChan, monoChan, octChan, oxynoeChan, quadChan, seiChan, zenithChan //Unit - Old Content [Animdustry]
     ;
@@ -596,6 +597,121 @@ public class RUnitTypes {
             payloadCapacity = Mathf.sqr(0.65f) * tilePayload;
             rotateMoveFirst = true;
             rotateSpeed = 4.5f;
+        }};
+
+
+        // Heavy six-legged artillery organism.
+        polyctenid = new UnitType("polyctenid"){{
+            constructor = LegsUnit::create;
+            controller = u -> new NeoplasmGroundAI();
+            flowfieldPathType = PathfinderCustom.costLegs;
+            health = 3400f;
+            armor = 10f;
+            hitSize = 24f;
+            speed = 0.46f;
+            rotateSpeed = 1.8f;
+            range = 215f;
+            maxRange = 215f;
+            legCount = 6;
+            legLength = 18f;
+            legExtension = -3f;
+            legBaseOffset = 6f;
+            legMoveSpace = 1.1f;
+            legSplashDamage = 26f;
+            legSplashRange = 18f;
+            rippleScale = 1.2f;
+            groundLayer = Layer.legUnit;
+            outlineColor = Pal.neoplasmOutline;
+            healColor = Pal.neoplasm1;
+
+            weapons.add(new Weapon(internalMod + "-polyctenid-siphon"){{
+                x = 0f; y = 8f; mirror = false; rotate = true;
+                rotateSpeed = 2.4f; reload = 3.5f; recoil = 0.6f;
+                inaccuracy = 4.5f; velocityRnd = 0.14f;
+                shootSound = Sounds.spray;
+                bullet = new LiquidBulletType(Liquids.neoplasm){{
+                    speed = 5.4f; lifetime = 40f; damage = 14f;
+                    puddleSize = 9f; orbSize = 4.2f; drag = 0.008f;
+                    knockback = 0.45f; status = StatusEffects.tarred;
+                    statusDuration = 180f; layer = Layer.bullet - 2f;
+                }};
+            }});
+
+            weapons.add(new Weapon(){{
+                x = 0f; y = -4f; mirror = false; rotate = true;
+                rotateSpeed = 1.6f; reload = 140f; inaccuracy = 6f;
+                shootSound = Sounds.artillery;
+                bullet = new ArtilleryBulletType(3.6f, 38f){{
+                    width = 11f; height = 11f; lifetime = 60f;
+                    splashDamage = 48f; splashDamageRadius = 26f;
+                    frontColor = Pal.neoplasm1; backColor = Pal.neoplasm2;
+                    hitEffect = despawnEffect = Fx.neoplasmSplat;
+                    puddleLiquid = Liquids.neoplasm; puddles = 3;
+                    puddleRange = 12f; puddleAmount = 14f;
+                }};
+            }});
+
+            abilities.add(new StatusFieldAbility(StatusEffects.shielded, 240f, 960f, 36f){{
+                activeEffect = Fx.neoplasiaSmoke;
+            }});
+        }};
+
+        // Fast segmented raider that seeks exposed logistics and backline targets.
+        scolopendra = new UnitType("scolopendra"){{
+            constructor = CrawlUnit::create;
+            controller = u -> new NeoplasmFlankerAI();
+            flowfieldPathType = PathfinderCustom.costGround;
+            health = 620f; armor = 3f; hitSize = 13f;
+            speed = 1.18f; rotateSpeed = 4.2f; range = 92f;
+            omniMovement = false; drawBody = false;
+            segments = 7; segmentScl = 3f; segmentPhase = 5f; segmentMag = 0.55f;
+            crushDamage = 0.35f;
+            outlineColor = Pal.neoplasmOutline;
+            healColor = Pal.neoplasm1;
+            weapons.add(new Weapon(){{
+                x = 0f; y = 6f; mirror = false; rotate = false;
+                reload = 22f; inaccuracy = 3f;
+                shoot = new ShootPattern(){{
+                    shots = 2;
+                    shotDelay = 4f;
+                }};
+                shootSound = Sounds.mud;
+                bullet = new BasicBulletType(4.6f, 24f){{
+                    width = 7f; height = 9f; lifetime = 21f;
+                    buildingDamageMultiplier = 1.45f;
+                    frontColor = Color.valueOf("b874d4");
+                    backColor = Color.valueOf("8a54a6");
+                    status = StatusEffects.corroded;
+                    statusDuration = 210f;
+                    hitEffect = despawnEffect = Fx.neoplasmSplat;
+                }};
+            }});
+        }};
+
+        // Low-altitude support organism that escorts allies and extends arteries.
+        mycelid = new UnitType("mycelid"){{
+            constructor = UnitEntity::create;
+            controller = u -> new NeoplasmSymbiontAI();
+            flowfieldPathType = PathfinderCustom.costNone;
+            flying = true; lowAltitude = true; hovering = true;
+            engineSize = 0f; health = 780f; armor = 4f; hitSize = 15f;
+            speed = 0.88f; rotateSpeed = 3.2f; range = 145f;
+            circleTarget = true; circleTargetRadius = 68f;
+            outlineColor = Pal.neoplasmOutline;
+            healColor = Pal.neoplasm1;
+            weapons.add(new Weapon(internalMod + "-mycelid-lash"){{
+                x = 0f; y = 5f; mirror = false; rotate = true;
+                rotateSpeed = 4.5f; reload = 38f; shootSound = Sounds.sap;
+                bullet = new BasicBulletType(4.2f, 26f){{
+                    width = 8f; height = 10f; lifetime = 35f;
+                    buildingDamageMultiplier = 1.6f;
+                    frontColor = Color.valueOf("b874d4");
+                    backColor = Pal.neoplasm2;
+                    status = StatusEffects.corroded;
+                    statusDuration = 240f;
+                    hitEffect = despawnEffect = Fx.neoplasmSplat;
+                }};
+            }});
         }};
 
         mantis = new MantisRayType("skat"){{

@@ -14,6 +14,9 @@ public final class NeoplasmPopulation {
     public static final int maxBlobs = 8;
     public static final int maxSiegeCrawlers = 3;
     public static final int maxSporeCarriers = 2;
+    public static final int maxPolyctenids = 2;
+    public static final int maxScolopendras = 5;
+    public static final int maxMycelids = 3;
 
     private NeoplasmPopulation(){}
 
@@ -31,6 +34,9 @@ public final class NeoplasmPopulation {
             + data.countType(RUnitTypes.matte)
             + data.countType(RUnitTypes.siegeCrawler)
             + data.countType(RUnitTypes.sporeCarrier)
+            + data.countType(RUnitTypes.polyctenid)
+            + data.countType(RUnitTypes.scolopendra)
+            + data.countType(RUnitTypes.mycelid)
             + data.countType(UnitTypes.renale);
     }
 
@@ -40,6 +46,9 @@ public final class NeoplasmPopulation {
         if(type == RUnitTypes.blob && data.countType(type) >= maxBlobs) return false;
         if(type == RUnitTypes.siegeCrawler && data.countType(type) >= maxSiegeCrawlers) return false;
         if(type == RUnitTypes.sporeCarrier && data.countType(type) >= maxSporeCarriers) return false;
+        if(type == RUnitTypes.polyctenid && data.countType(type) >= maxPolyctenids) return false;
+        if(type == RUnitTypes.scolopendra && data.countType(type) >= maxScolopendras) return false;
+        if(type == RUnitTypes.mycelid && data.countType(type) >= maxMycelids) return false;
         return true;
     }
 }

@@ -107,7 +107,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
 
     interplanetaryAccelerator, //Endgame - Mindustry
 
-    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, siegeCrawlerSpawner, sporeCarrierSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
+    ductJunction, cord, heart, neoplasiaDrill, bloom, pore, tole, oxideCrafter, renaleSpawner, hydroBomberSpawner, walkySpawner, squidSpawner, muleSpawner, siegeCrawlerSpawner, sporeCarrierSpawner, polyctenidSpawner, scolopendraSpawner, mycelidSpawner, neoplasiaBomb, largeCliffCrusher //Erekir - Prototype [v8-dev]
     ;
 
     public void load() {
@@ -1195,6 +1195,40 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
             spawnTime = 210f;
+        }};
+
+
+        polyctenidSpawner = new CausticSpawner("polyctenid-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.oxide, 1, Items.graphite, 1));
+            size = 4;
+            selfDestruct = true;
+            spawn = RUnitTypes.polyctenid;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Liquids.neoplasm.color;
+            spawnTime = 300f;
+        }};
+
+        scolopendraSpawner = new CausticSpawner("scolopendra-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.beryllium, 1));
+            size = 3;
+            selfDestruct = true;
+            spawn = RUnitTypes.scolopendra;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Color.valueOf("8a54a6");
+            spawnTime = 195f;
+        }};
+
+        mycelidSpawner = new CausticSpawner("mycelid-spawner"){{
+            requirements(Category.distribution, with(Items.beryllium, 1));
+            consumeItems(with(Items.oxide, 1));
+            size = 3;
+            selfDestruct = true;
+            spawn = RUnitTypes.mycelid;
+            spawnEffect = RFx.smokeColor;
+            spawnColor = Color.valueOf("8a54a6");
+            spawnTime = 225f;
         }};
 
         neoplasiaBomb = new CausticMine("Neoplasia-Bomb"){{

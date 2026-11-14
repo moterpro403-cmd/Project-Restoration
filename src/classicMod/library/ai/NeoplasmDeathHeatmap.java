@@ -110,7 +110,10 @@ public final class NeoplasmDeathHeatmap {
                 || unit.type == RUnitTypes.squid
                 || unit.type == RUnitTypes.matte
                 || unit.type == RUnitTypes.siegeCrawler
-                || unit.type == RUnitTypes.sporeCarrier;
+                || unit.type == RUnitTypes.sporeCarrier
+                || unit.type == RUnitTypes.polyctenid
+                || unit.type == RUnitTypes.scolopendra
+                || unit.type == RUnitTypes.mycelid;
     }
 
     private static boolean isDeathHeatSuppressed(Unit unit) {

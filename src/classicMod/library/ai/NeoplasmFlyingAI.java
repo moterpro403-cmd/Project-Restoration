@@ -17,7 +17,7 @@ import static mindustry.world.meta.BlockFlag.*;
  * Suicide bombers are automatically excluded so they charge straight into targets.
  */
 public class NeoplasmFlyingAI extends FlyingAI {
-    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    protected final NeoplasmAIController deathMemory = new NeoplasmAIController();
     private static final Rand rand = new Rand();
     private static final BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
 
