@@ -24,12 +24,17 @@ jobs:
       - name: Install zip tools
         run: sudo apt-get update && sudo apt-get install -y unzip
 
+      - name: Reassemble The Mass source archive
+        run: |
+          set -euo pipefail
+          test -d .github/neoplasm-archive-parts
+          cat .github/neoplasm-archive-parts/part-*.b64 > /tmp/the-mass-source.b64
+          base64 --decode /tmp/the-mass-source.b64 > the-mass-neoplasm-source.zip
+          echo "22c808d642adb9e50066a26caeb5a370a9b252307138ba317b326cf019a04c19  the-mass-neoplasm-source.zip" | sha256sum --check
+
       - name: Install The Mass sources
         run: |
-          if [ ! -f the-mass-neoplasm-source.zip ]; then
-            echo "::error::Upload the-mass-neoplasm-source.zip to the repository root on neoplasm-expansion."
-            exit 1
-          fi
+          set -euo pipefail
           rm -rf /tmp/the-mass
           mkdir -p /tmp/the-mass
           unzip -q the-mass-neoplasm-source.zip -d /tmp/the-mass
