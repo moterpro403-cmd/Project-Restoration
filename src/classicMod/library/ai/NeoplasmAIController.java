@@ -33,7 +33,6 @@ public class NeoplasmAIController extends AIController {
     private static final int maximumDeathRadius = 7;
     private static final float dangerLookAheadTiles = 8f;
     private static final float dangerTrigger = 0.045f;
-    private static final float pathRiskWeight = 36f;
     private static final float directRiskWeight = 34f;
     private static final float minimumRiskImprovement = 0.025f;
 
@@ -44,11 +43,14 @@ public class NeoplasmAIController extends AIController {
     private static class DangerField {
         /** Expiry time per tile. Zero means the cell has never been marked. */
         final float[] expiresAt;
+        /** Time at which the current local risk was last refreshed. */
+        final float[] markedAt;
         /** Unsigned 0..255 risk intensity per tile. */
         final byte[] risk;
 
         DangerField(int length) {
             expiresAt = new float[length];
+            markedAt = new float[length];
             risk = new byte[length];
         }
     }
@@ -106,7 +108,7 @@ public class NeoplasmAIController extends AIController {
     }
 
     private static void recordDeath(Unit dead) {
-        if (dead == null || Vars.world == null || isSuicideBomber(dead)
+        if (dead == null || Vars.world == null || (Vars.net != null && Vars.net.client()) || isSuicideBomber(dead)
                 || !isNeoplasmUnit(dead) || ignoresDeathAvoidance(dead)) return;
 
         Tile tile = dead.tileOn();
@@ -145,6 +147,7 @@ public class NeoplasmAIController extends AIController {
                     grid.risk[index] = (byte)Math.max(grid.risk[index] & 0xff, intensity);
                 }
                 grid.expiresAt[index] = Math.max(grid.expiresAt[index], expires);
+                grid.markedAt[index] = now;
             }
         }
     }
@@ -169,9 +172,12 @@ public class NeoplasmAIController extends AIController {
         if (grid.expiresAt[index] <= Time.time) {
             grid.expiresAt[index] = 0f;
             grid.risk[index] = 0;
+            grid.markedAt[index] = 0f;
             return 0f;
         }
-        return (grid.risk[index] & 0xff) / 255f;
+        float strength = (grid.risk[index] & 0xff) / 255f;
+        float age = Math.max(0f, Time.time - grid.markedAt[index]);
+        return strength * Mathf.clamp(1f - age / deathMemoryLifetime);
     }
 
     public float getDangerRisk(Tile tile) {
@@ -258,7 +264,6 @@ public class NeoplasmAIController extends AIController {
         if (currentRisk < dangerTrigger && directRisk < dangerTrigger) return false;
 
         Tile best = null;
-        float bestRisk = Float.MAX_VALUE;
         float bestScore = Float.MAX_VALUE;
 
         for (Point2 direction : Geometry.d8) {
@@ -273,7 +278,6 @@ public class NeoplasmAIController extends AIController {
 
             if (score < bestScore) {
                 bestScore = score;
-                bestRisk = risk;
                 best = candidate;
             }
         }
