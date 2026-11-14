@@ -28,7 +28,7 @@ public class NeoplasmGroundAI extends GroundAI {
     @Override
     public void pathfind(int pathTarget, boolean stopAtTargetTile, boolean avoidance) {
         deathMemory.unit(unit);
-        if (!deathMemory.applyDodgePathfind(pathTarget)) {
+        if (!deathMemory.applyDodgePathfind(pathTarget, avoidance)) {
             super.pathfind(pathTarget, stopAtTargetTile, avoidance);
         }
     }
