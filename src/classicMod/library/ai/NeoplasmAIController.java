@@ -264,7 +264,7 @@ public class NeoplasmAIController extends AIController {
         for (Point2 direction : Geometry.d8) {
             Tile candidate = Vars.world.tile(current.x + direction.x, current.y + direction.y);
             if (candidate == null || candidate == current) continue;
-            if (!unit.isFlying() && !unit.canPass(candidate.x, candidate.y)) continue;
+            if (!unit.type.flying && !unit.canPass(candidate.x, candidate.y)) continue;
 
             float risk = sampleRiskAhead(unit.team, candidate, destination,
                     Mathf.ceil(dangerLookAheadTiles));
