@@ -222,7 +222,6 @@ public class ClassicMod extends Mod {
         if (settings.getBool("use-planetmenu")) MenuUI.load();
         AutoUpdate.load();
         AutoUpdate.check(settings.getBool("ignore-update"));
-        themass.NeoplasmMod.init();
 
         if (!headless) {
             resMod = mods.locateMod("restored-mind");
@@ -363,11 +362,6 @@ public class ClassicMod extends Mod {
                 t.checkPref("content-v4", false);
             }
 
-            t.pref(new UIExtended.Separator("restored-neoplasm-expansion"));
-            t.checkPref("mass-enable-removed-latum", false);
-            t.checkPref("neoplasmDebugAI", false);
-            t.sliderPref("mass-max-blobs-per-heart", 12, 1, 64, i -> i + " blobs");
-
             t.pref(new UIExtended.Separator("restored-link"));
             t.pref(new UIExtended.ButtonSetting("restored-youtube", Icon.play, () -> Core.app.openURI("https://www.youtube.com/@vvseangtvv"), 32, true));
             t.pref(new UIExtended.ButtonSetting("restored-github", Icon.github, () -> Core.app.openURI("https://github.com/VvSeanGTvV/Project-Restoration"), 32, true));
@@ -451,7 +445,6 @@ public class ClassicMod extends Mod {
         new RBullets().load();
         new RUnitTypes().load();
         new RBlocks().load();
-        themass.NeoplasmMod.loadContent();
         new RSectorPresents().load();
         new RPlanets().load();
 
