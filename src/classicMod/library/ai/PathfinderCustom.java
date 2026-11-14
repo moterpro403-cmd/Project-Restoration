@@ -403,83 +403,82 @@ public class PathfinderCustom implements Runnable {
         return current;
     }
 
+    /**
+     * Keeps Mindustry's shared flowfield as the primary route and adds a small
+     * local risk cost. Vanilla congestion avoidance is activated only when the
+     * caller reports that its GroundAI is stuck.
+     */
     @Nullable
-    public Tile getTargetTileDodge(Tile tile, Flowfield path, Seq<Tile> dangerTile) {
-        if (tile == null) return null;
-        if (path == null || !path.initialized || dangerTile == null || dangerTile.isEmpty()) return tile;
+    public Tile getTargetTileDodge(Tile tile, Flowfield path, Unit unit,
+                                   boolean stuckAvoidance, float dangerSensitivity) {
+        if (tile == null || path == null || unit == null || !path.initialized) return tile;
 
-        if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > (long)path.refreshRate) {
-            path.lastUpdateTime = Time.millis();
-            this.tmpArray.clear();
-            path.getPositions(this.tmpArray);
-            synchronized (path.targets) {
-                if (path.targets.size != 1 || this.tmpArray.size != 1
-                    || path.targets.first() != this.tmpArray.first()) {
-                    path.updateTargetPositions();
-                    this.queue.post(() -> this.updateTargets(path));
-                }
-            }
-        }
+        Tile vanilla = getTargetTile(tile, path, true, stuckAvoidance ? unit.id : 0);
+        float currentRisk = NeoplasmAIController.getDangerRisk(unit.team, tile);
+        if (currentRisk < 0.02f) return vanilla;
 
         int[] values = path.hasComplete ? path.completeWeights : path.weights;
-        int currentIndex = tile.array();
-        if (currentIndex < 0 || currentIndex >= values.length) return tile;
+        int res = path.resolution;
+        int ww = path.width;
+        int currentIndex = tile.x / res + tile.y / res * ww;
+        if (currentIndex < 0 || currentIndex >= values.length) return vanilla;
 
         int currentWeight = values[currentIndex];
-        Tile bestPathStep = null;
-        int bestPathWeight = Integer.MAX_VALUE;
+        if (currentWeight == impassable) return vanilla;
 
-        Tile bestEscapeStep = null;
-        float currentClearance = nearestDangerDistance(tile, dangerTile);
-        float bestClearance = currentClearance;
+        float riskWeight = 42f * Math.max(0.65f, dangerSensitivity);
+        float currentScore = currentWeight + currentRisk * riskWeight;
+        Tile best = vanilla;
+        float bestScore = vanilla == null ? Float.MAX_VALUE : Float.MAX_VALUE;
 
-        // Check only immediate neighbors so movement cannot skip across walls.
+        if (vanilla != null) {
+            int index = vanilla.x / res + vanilla.y / res * ww;
+            if (index >= 0 && index < values.length && values[index] != impassable) {
+                bestScore = values[index] + NeoplasmAIController.getDangerRisk(unit.team, vanilla) * riskWeight;
+            }
+        }
+
+        // The vanilla next step remains the baseline. Only inspect adjacent,
+        // passable tiles when local danger is present; do not run another map search.
         for (Point2 point : Geometry.d8) {
-            int dx = tile.x + point.x;
-            int dy = tile.y + point.y;
-            Tile other = Vars.world.tile(dx, dy);
-            if (other == null) continue;
+            int dx = tile.x + point.x * res;
+            int dy = tile.y + point.y * res;
+            Tile candidate = Vars.world.tile(dx, dy);
+            if (candidate == null || candidate == tile) continue;
 
-            int packed = Vars.world.packArray(dx, dy);
-            if (packed < 0 || packed >= values.length || !path.passable(packed)) continue;
+            int packed = dx / res + dy / res * ww;
+            if (packed < 0 || packed >= values.length || values[packed] == impassable
+                    || !path.passable(packed)) continue;
 
-            // Reject diagonal corner cutting.
             if (point.x != 0 && point.y != 0) {
-                int horizontal = Vars.world.packArray(tile.x + point.x, tile.y);
-                int vertical = Vars.world.packArray(tile.x, tile.y + point.y);
-                if (!path.passable(horizontal) || !path.passable(vertical)) continue;
+                int horizontal = (tile.x + point.x * res) / res + tile.y / res * ww;
+                int vertical = tile.x / res + (tile.y + point.y * res) / res * ww;
+                if (horizontal < 0 || horizontal >= values.length
+                    || vertical < 0 || vertical >= values.length
+                    || !path.passable(horizontal) || !path.passable(vertical)) continue;
             }
 
-            float clearance = nearestDangerDistance(other, dangerTile);
-            if (clearance <= 40f) continue;
+            float candidateRisk = NeoplasmAIController.getDangerRisk(unit.team, candidate);
+            int candidateWeight = values[packed];
+            boolean makesPathProgress = candidateWeight < currentWeight;
+            boolean escapesRisk = candidateRisk + 0.015f < currentRisk;
+            if (!makesPathProgress && !escapesRisk) continue;
 
-            // Prefer the safest neighbor that still makes progress toward the
-            // flowfield target.
-            if (values[packed] >= 0 && values[packed] < currentWeight
-                && values[packed] < bestPathWeight) {
-                bestPathStep = other;
-                bestPathWeight = values[packed];
-            }
-
-            // If every route-progress step is blocked by the danger radius,
-            // move outward first. The next tick will try to rejoin the field.
-            if (clearance > bestClearance) {
-                bestEscapeStep = other;
-                bestClearance = clearance;
+            float score = candidateWeight + candidateRisk * riskWeight;
+            if (score < bestScore && (makesPathProgress || escapesRisk)) {
+                bestScore = score;
+                best = candidate;
             }
         }
 
-        if (bestPathStep != null) return bestPathStep;
-        if (bestEscapeStep != null && bestClearance > currentClearance) return bestEscapeStep;
-        return tile;
-    }
+        // Avoid trading a tiny risk reduction for a large detour.
+        if (best == null) return vanilla;
+        int bestIndex = best.x / res + best.y / res * ww;
+        if (bestIndex < 0 || bestIndex >= values.length) return vanilla;
+        int detour = values[bestIndex] - currentWeight;
+        if (detour > 120 && NeoplasmAIController.getDangerRisk(unit.team, best) > 0.02f) return vanilla;
 
-    private float nearestDangerDistance(Tile tile, Seq<Tile> dangerTiles) {
-        float nearest = Float.MAX_VALUE;
-        for (Tile danger : dangerTiles) {
-            if (danger != null) nearest = Math.min(nearest, danger.dst(tile));
-        }
-        return nearest;
+        return bestScore + 0.5f < currentScore || best == vanilla ? best : vanilla;
     }
 
     /** Increments the search and sets up flow sources. Does not change the frontier. */

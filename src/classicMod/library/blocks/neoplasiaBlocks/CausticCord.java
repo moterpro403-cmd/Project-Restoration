@@ -288,11 +288,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         }
 
         private float cordRouteScore(Tile candidate, Tile objective) {
-            float score = candidate.dst(objective);
-            score += NeoplasmDeathHeatmap.getHeat(team, candidate) * 0.45f;
-            score += NeoplasmStrategicPathfinder.getTileThreat(team, candidate) * 0.08f;
-            score += NeoplasmStrategicPathfinder.getTileChokepoint(team, candidate) * 4.5f;
-            return score;
+            // Legacy cord growth follows the nearest useful objective.
+            return candidate.dst(objective);
         }
 
         public Tile pathfind(int pathTarget) {
@@ -393,40 +390,44 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         ||
                                 (getTotal(Items.beryllium, 3) >= 5)
                 ){
-                    if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
+                    if (Mathf.chance(0.32f)) ReplaceTo(RBlocks.scolopendraSpawner);
+                    else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.walkySpawner);
                     else ReplaceTo(RBlocks.oxideCrafter);
                     cordMode = false;
                 }
 
-                if (
+                if (cordMode && (
                         (items.has(Items.graphite) &&
                         left() == null &&
                         right() == null)
                         ||
                                 ((getTotal(Items.graphite, 3) >= 5))
 
-                ){
-                    if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
+                )){
+                    if ((items.has(Items.oxide) || getTotal(Items.oxide, 3) >= 5)
+                            && Mathf.chance(0.25f)) ReplaceTo(RBlocks.polyctenidSpawner);
+                    else if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
                     else ReplaceTo(RBlocks.squidSpawner);
                     cordMode = false;
                 }
 
-                if (
+                if (cordMode && (
                         (items.has(Items.oxide) &&
                         left() == null &&
                         right() == null)
                         ||
                                 ((getTotal(Items.oxide, 3) >= 5))
-                ){
+                )){
 
-                    if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
+                    if (Mathf.chance(0.30f)) ReplaceTo(RBlocks.mycelidSpawner);
+                    else if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
                     else ReplaceTo(RBlocks.hydroBomberSpawner);
                     cordMode = false;
                 }
 
-                if ((Units.closestEnemy(team, x, y, 220f, u -> u.type.killable && u.type.hittable && u.isGrounded()) != null)) {
+                if (cordMode && (Units.closestEnemy(team, x, y, 220f, u -> u.type.killable && u.type.hittable && u.isGrounded()) != null)) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 60f, b -> (b.block == RBlocks.neoplasiaBomb)) != null;
                     if (!tooClose &&
                             left() == null &&
@@ -437,7 +438,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
+                if (cordMode && (Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
                         (Units.findEnemyTile(team, x, y, 440f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 200f)
                         ) != null)) {
@@ -448,7 +449,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if ((Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
+                if (cordMode && (Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
                         (Units.findEnemyTile(team, x, y, 140f, b -> b.isValid() && (
                                 b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 80f)
                         ) != null)) {
@@ -475,25 +476,49 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void updateAfterBeat() {
-            if (current != null){
-                Seq<NeoplasmBuilding> avaliable = new Seq<>();
+            Item item = items.first();
+            if (item == null){
+                current = null;
+                return;
+            }
+
+            Seq<NeoplasmBuilding> spawnerDestinations = new Seq<>();
+            Seq<NeoplasmBuilding> otherDestinations = new Seq<>();
+
+            // "nearby()" measures from a block center and misses the edge of
+            // 3x3/4x4 spawners. "proximity" is based on actual footprint contact.
+            for (Building nearby : proximity){
+                NeoplasmBuilding dest = getNeoplasm(nearby);
+                if (dest == null || dest == this || !validBuilding(dest, item)) continue;
+                if (dest.block instanceof CausticSpawner){
+                    if (!spawnerDestinations.contains(dest, true)) spawnerDestinations.add(dest);
+                }else if (!otherDestinations.contains(dest, true)){
+                    otherDestinations.add(dest);
+                }
+            }
+
+            // Fallback for the first update after a building is placed.
+            if (spawnerDestinations.isEmpty() && otherDestinations.isEmpty()){
                 for (int i = 0; i < 4; i++){
                     NeoplasmBuilding dest = getNeoplasm(nearby(Mathf.mod(facingRot + i, 4)));
-                    //NeoplasmBuilding dest = getNeoplasm(nearby(facingRot + i));
-                    Item item = items.first();
-                    if (validBuilding(dest, item)) avaliable.add(dest);
-                }
-                if (avaliable.size > 0) {
-                    int selected = Mathf.clamp(Mathf.random(0, avaliable.size), 0, avaliable.size - 1);
-                    Item item = items.first();
-                    Building dest = avaliable.get(selected);
-                    if (item != null && validBuilding(dest, item)) {
-                        current = null;
-                        items.clear();
-                        dest.handleItem(this, item);
+                    if (validBuilding(dest, item) && !otherDestinations.contains(dest, true)){
+                        otherDestinations.add(dest);
                     }
                 }
             }
+
+            // Feed adjacent spawner recipes before passing ingredients further along.
+            Seq<NeoplasmBuilding> destinations = spawnerDestinations.isEmpty()
+                    ? otherDestinations : spawnerDestinations;
+            if (destinations.isEmpty()) return;
+
+            NeoplasmBuilding destination = destinations.get(Mathf.random(destinations.size - 1));
+            if (!validBuilding(destination, item)) return;
+
+            current = null;
+            items.remove(item, 1);
+            destination.handleItem(this, item);
+            if (items.any()) current = items.first();
         }
 
         public void coverQueue(Block cordPlacement){

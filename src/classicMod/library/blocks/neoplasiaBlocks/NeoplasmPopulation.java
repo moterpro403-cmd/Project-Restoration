@@ -10,10 +10,13 @@ import mindustry.content.UnitTypes;
  * Counts only its own roster, leaving other teams' unit budgets untouched.
  */
 public final class NeoplasmPopulation {
-    public static final int maxTotal = 32;
-    public static final int maxBlobs = 8;
-    public static final int maxSiegeCrawlers = 3;
-    public static final int maxSporeCarriers = 2;
+    public static final int maxTotal = 64;
+    public static final int maxBlobs = 12;
+    public static final int maxSiegeCrawlers = 4;
+    public static final int maxSporeCarriers = 4;
+    public static final int maxPolyctenids = 3;
+    public static final int maxScolopendras = 8;
+    public static final int maxMycelids = 5;
 
     private NeoplasmPopulation(){}
 
@@ -31,6 +34,9 @@ public final class NeoplasmPopulation {
             + data.countType(RUnitTypes.matte)
             + data.countType(RUnitTypes.siegeCrawler)
             + data.countType(RUnitTypes.sporeCarrier)
+            + data.countType(RUnitTypes.polyctenid)
+            + data.countType(RUnitTypes.scolopendra)
+            + data.countType(RUnitTypes.mycelid)
             + data.countType(UnitTypes.renale);
     }
 
@@ -40,6 +46,9 @@ public final class NeoplasmPopulation {
         if(type == RUnitTypes.blob && data.countType(type) >= maxBlobs) return false;
         if(type == RUnitTypes.siegeCrawler && data.countType(type) >= maxSiegeCrawlers) return false;
         if(type == RUnitTypes.sporeCarrier && data.countType(type) >= maxSporeCarriers) return false;
+        if(type == RUnitTypes.polyctenid && data.countType(type) >= maxPolyctenids) return false;
+        if(type == RUnitTypes.scolopendra && data.countType(type) >= maxScolopendras) return false;
+        if(type == RUnitTypes.mycelid && data.countType(type) >= maxMycelids) return false;
         return true;
     }
 }

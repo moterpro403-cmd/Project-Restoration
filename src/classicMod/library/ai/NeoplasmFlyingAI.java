@@ -17,16 +17,16 @@ import static mindustry.world.meta.BlockFlag.*;
  * Suicide bombers are automatically excluded so they charge straight into targets.
  */
 public class NeoplasmFlyingAI extends FlyingAI {
-    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    protected final NeoplasmAIController deathMemory = new NeoplasmAIController();
     private static final Rand rand = new Rand();
     private static final BlockFlag[] randomTargets = {core, storage, generator, launchPad, factory, repair, battery, reactor, drill};
 
-    public boolean isIgnoringDeathHeat() {
-        return deathMemory.ignoreDeathHeat;
+    public boolean isIgnoringDeathAvoidance() {
+        return deathMemory.ignore;
     }
 
-    public void setIgnoreDeathHeat(boolean ignore) {
-        deathMemory.ignoreDeathHeat = ignore;
+    public void setIgnoreDeathAvoidance(boolean ignore) {
+        deathMemory.ignore = ignore;
     }
 
     @Override
@@ -74,7 +74,7 @@ public class NeoplasmFlyingAI extends FlyingAI {
 
         if (target != null && unit.hasWeapons()) {
             // Suicide bombers dive directly onto targets without detouring around defenses.
-            if (NeoplasmDeathHeatmap.isSuicideBomber(unit)) {
+            if (NeoplasmAIController.isSuicideBomber(unit)) {
                 moveTo(target, 0f);
                 if (unit.type.faceTarget) unit.lookAt(target);
                 return;
@@ -91,14 +91,9 @@ public class NeoplasmFlyingAI extends FlyingAI {
 
             // Use the map-wide strategic Dijkstra route so flyers proactively pick
             // open flanking paths around fortified chokepoints and turret lines.
-            boolean strategicallyRouted = destination != null
-                    && !unit.within(destination, engageRange)
-                    && deathMemory.applyStrategicTarget(
-                            destination, engageRange, PathfinderCustom.costNone
-                    );
+            boolean diverted = destination != null && deathMemory.avoidNearbyDanger(destination);
 
-            if (!strategicallyRouted
-                    && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
+            if (!diverted) {
                 if (unit.type.circleTarget) {
                     circleAttack(unit.type.circleTargetRadius);
                 } else {

@@ -1,14 +1,12 @@
 package classicMod.library.ai;
 
 import classicMod.content.RBlocks;
-import classicMod.content.RVars;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
 import mindustry.world.Tile;
 import mindustry.world.meta.Attribute;
 
 public class SteamHugAI extends NeoplasmAIController {
-
     boolean stucked = false;
 
     @Override
@@ -17,15 +15,15 @@ public class SteamHugAI extends NeoplasmAIController {
         if (closestVent != null) {
             pathfind(PathfinderExtended.fieldVent);
         } else {
-            ignoreDeathHeat = true;
+            ignore = true;
             unit.kill();
         }
 
         faceMovement();
         Tile tile = unit.tileOn();
         if (tile != null && tile.floor().attributes.get(Attribute.steam) >= 1f
-            && !(tile.build instanceof CausticHeart.HeartBuilding)) {
-            ignoreDeathHeat = true;
+                && !(tile.build instanceof CausticHeart.HeartBuilding)) {
+            ignore = true;
             tile.setBlock(RBlocks.cord, unit.team);
             unit.kill();
         }
@@ -34,34 +32,24 @@ public class SteamHugAI extends NeoplasmAIController {
     @Override
     public void pathfind(int pathTarget) {
         stucked = false;
-        int costType = this.unit.type.flowfieldPathType;
-        Tile tile = this.unit.tileOn();
+        int costType = unit.type.flowfieldPathType;
+        Tile tile = unit.tileOn();
         if (tile == null) {
             stucked = true;
             return;
         }
 
-        // Prefer a safe death-aware step when one exists.
-        Tile dodgeTarget = getDodgeTarget(pathTarget, tile);
-        if (dodgeTarget != null
-            && dodgeTarget != tile
-            && (costType != 2 || (dodgeTarget.floor() != null && dodgeTarget.floor().isLiquid))) {
-            this.unit.movePref(
-                vec.trns(this.unit.angleTo(dodgeTarget.worldx(), dodgeTarget.worldy()), this.unit.speed())
-            );
-            return;
-        }
+        // Use the legacy remembered-death tile avoidance before the normal vent field.
+        if (applyDodgePathfind(pathTarget)) return;
 
-        // No usable safe step: resume the original Mindustry 160.7 vent route.
         Tile targetTile = Vars.pathfinder.getTargetTile(
-            tile,
-            Vars.pathfinder.getField(this.unit.team, costType, pathTarget)
+                tile, Vars.pathfinder.getField(unit.team, costType, pathTarget)
         );
         if (targetTile != null && tile != targetTile
-            && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
-            this.unit.movePref(
-                vec.trns(this.unit.angleTo(targetTile.worldx(), targetTile.worldy()), this.unit.speed())
-            );
+                && (costType != 2 || (targetTile.floor() != null && targetTile.floor().isLiquid))) {
+            unit.movePref(vec.trns(
+                    unit.angleTo(targetTile.worldx(), targetTile.worldy()), unit.speed()
+            ));
         } else {
             stucked = true;
         }

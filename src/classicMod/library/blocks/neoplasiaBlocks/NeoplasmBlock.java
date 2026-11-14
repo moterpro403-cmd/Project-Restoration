@@ -15,6 +15,7 @@ import mindustry.entities.Puddles;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.type.Item;
 import mindustry.type.Liquid;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
@@ -202,19 +203,58 @@ public class NeoplasmBlock extends Block {
         }
 
         public void ReplaceTo(Block toBlock){
-            float spaceAvaliable = 0;
+            if (toBlock == null || tile == null || Vars.world == null) return;
+
+            float spaceAvailable = 0f;
             int size = toBlock.size;
             int half = size / 2;
+            Seq<CausticCord.CordBuild> absorbedCords = new Seq<>();
+
             for (int dx = (tile.x - half) + (size % 2 == 0 ? 1 : 0); dx <= (tile.x + half); dx++){
-                for (int dy = (tile.y - half) + (size % 2 == 0 ? 1 : 0); dy <= (tile.y + half); dy++) {
+                for (int dy = (tile.y - half) + (size % 2 == 0 ? 1 : 0); dy <= (tile.y + half); dy++){
                     Tile target = Vars.world.tile(dx, dy);
-                    if (target != null && (target.block() instanceof AirBlock || target.block() instanceof CausticCord)) spaceAvaliable++;
+                    if (target == null) continue;
+                    if (target.block() instanceof AirBlock || target.block() instanceof CausticCord){
+                        spaceAvailable++;
+                        if (target.build instanceof CausticCord.CordBuild cord
+                            && cord.team == team && !absorbedCords.contains(cord, true)){
+                            absorbedCords.add(cord);
+                        }
+                    }
                 }
             }
 
-            if (spaceAvaliable >= size * size) {
-                Tile replacement = Vars.world.tile(this.tile.x, this.tile.y);
-                replacement.setBlock(toBlock, team, rotation);
+            if (spaceAvailable < size * size) return;
+
+            Seq<Item> savedItems = new Seq<>();
+            Seq<Integer> savedAmounts = new Seq<>();
+            if (toBlock instanceof CausticSpawner){
+                for (CausticCord.CordBuild cord : absorbedCords){
+                    if (cord.items == null) continue;
+                    for (Item item : Vars.content.items()){
+                        int amount = cord.items.get(item);
+                        if (amount <= 0) continue;
+                        int index = savedItems.indexOf(item, true);
+                        if (index < 0){
+                            savedItems.add(item);
+                            savedAmounts.add(amount);
+                        } else {
+                            savedAmounts.set(index, savedAmounts.get(index) + amount);
+                        }
+                    }
+                }
+            }
+
+            Tile replacement = Vars.world.tile(this.tile.x, this.tile.y);
+            if (replacement == null) return;
+            replacement.setBlock(toBlock, team, rotation);
+
+            if (toBlock instanceof CausticSpawner && replacement.build != null){
+                // The larger building should inherit the raw materials stored by
+                // the small cord segments it just absorbed.
+                for (int i = 0; i < savedItems.size; i++){
+                    replacement.build.items.add(savedItems.get(i), savedAmounts.get(i));
+                }
             }
         }
 

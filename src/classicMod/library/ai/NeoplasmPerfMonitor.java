@@ -16,8 +16,6 @@ import mindustry.gen.Unit;
 public final class NeoplasmPerfMonitor {
     public static final int TIMER_PATH = 0;
     public static final int TIMER_STEERING = 1;
-    public static final int TIMER_HEAT = 2;
-    public static final int TIMER_ROUTE = 3;
     public static final int TIMER_TURRET = 4;
     public static final int TIMER_TRAFFIC = 5;
     public static final int TIMER_CORD = 6;
@@ -34,13 +32,10 @@ public final class NeoplasmPerfMonitor {
 
     private static int pathRequests;
     private static int riskDecisions;
-    private static int routeBuilds;
     private static int turretScans;
     private static int trafficScans;
     private static int cordScans;
     private static int cordRepairs;
-    private static int deathEvents;
-    private static int suppressedDeathEvents;
 
     private NeoplasmPerfMonitor(){
     }
@@ -66,13 +61,10 @@ public final class NeoplasmPerfMonitor {
 
     public static void pathRequest(){ if(enabled) pathRequests++; }
     public static void riskDecision(){ if(enabled) riskDecisions++; }
-    public static void routeBuild(){ if(enabled) routeBuilds++; }
     public static void turretScan(){ if(enabled) turretScans++; }
     public static void trafficScan(){ if(enabled) trafficScans++; }
     public static void cordScan(){ if(enabled) cordScans++; }
     public static void cordRepair(){ if(enabled) cordRepairs++; }
-    public static void deathRecorded(){ if(enabled) deathEvents++; }
-    public static void deathSuppressed(){ if(enabled) suppressedDeathEvents++; }
 
     private static String timeMs(int timer){
         long tenths = timerNanos[timer] / 100000L;
@@ -139,14 +131,11 @@ public final class NeoplasmPerfMonitor {
             + ", bomber=" + bomber + ", kalyx=" + kalyx + ", matte=" + matte
             + ", other=" + otherNeoplasm + "]"
             + " /10s [path=" + pathRequests + ", risk=" + riskDecisions
-            + ", dijkstra=" + routeBuilds + ", turretScan=" + turretScans
+            + ", turretScan=" + turretScans
             + ", trafficScan=" + trafficScans + ", cordScan=" + cordScans
-            + ", cordRepair=" + cordRepairs + ", deaths=" + deathEvents
-            + ", deathSuppressed=" + suppressedDeathEvents + "]"
+            + ", cordRepair=" + cordRepairs + "]"
             + " ms[path=" + timeMs(TIMER_PATH) + "/" + timerCalls[TIMER_PATH]
             + ", steer=" + timeMs(TIMER_STEERING) + "/" + timerCalls[TIMER_STEERING]
-            + ", heat=" + timeMs(TIMER_HEAT) + "/" + timerCalls[TIMER_HEAT]
-            + ", route=" + timeMs(TIMER_ROUTE) + "/" + timerCalls[TIMER_ROUTE]
             + ", turret=" + timeMs(TIMER_TURRET) + "/" + timerCalls[TIMER_TURRET]
             + ", traffic=" + timeMs(TIMER_TRAFFIC) + "/" + timerCalls[TIMER_TRAFFIC]
             + ", cord=" + timeMs(TIMER_CORD) + "/" + timerCalls[TIMER_CORD]
@@ -159,13 +148,10 @@ public final class NeoplasmPerfMonitor {
     private static void reset(){
         pathRequests = 0;
         riskDecisions = 0;
-        routeBuilds = 0;
         turretScans = 0;
         trafficScans = 0;
         cordScans = 0;
         cordRepairs = 0;
-        deathEvents = 0;
-        suppressedDeathEvents = 0;
         for(int i = 0; i < timerNanos.length; i++){
             timerNanos[i] = 0L;
             timerCalls[i] = 0;

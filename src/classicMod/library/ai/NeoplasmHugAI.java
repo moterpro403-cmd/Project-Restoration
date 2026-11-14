@@ -17,6 +17,14 @@ import static mindustry.Vars.*;
 public class NeoplasmHugAI extends HugAI {
     private final NeoplasmAIController deathMemory = new NeoplasmAIController();
 
+    public boolean isIgnoringDeathAvoidance() {
+        return deathMemory.ignore;
+    }
+
+    public void setIgnoreDeathAvoidance(boolean ignore) {
+        deathMemory.ignore = ignore;
+    }
+
     @Override
     public void updateUnit() {
         deathMemory.unit(unit);
@@ -80,14 +88,9 @@ public class NeoplasmHugAI extends HugAI {
                 destination = world.tile(target.tileX(), target.tileY());
             }
 
-            float strategicStop = Math.max(unit.hitSize * 2f, unit.range() * 0.8f);
-            boolean strategicallyRouted = destination != null
-                    && deathMemory.applyStrategicTarget(
-                            destination, strategicStop, unit.type.flowfieldPathType
-                    );
+            boolean diverted = destination != null && deathMemory.avoidNearbyDanger(destination);
 
-            if (!strategicallyRouted
-                    && (destination == null || !deathMemory.avoidNearbyDanger(destination))) {
+            if (!diverted) {
                 if (unit.within(target, (unit.hitSize + (target instanceof Sized sized ? sized.hitSize() : 1f)) * 0.5f)) {
                     unit.movePref(vec.set(target).sub(unit).rotate(90f).setLength(unit.speed()));
                 } else {

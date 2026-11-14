@@ -8,14 +8,14 @@ import mindustry.ai.types.GroundAI;
  * chokepoint avoidance and death-heatmap routing.
  */
 public class NeoplasmGroundAI extends GroundAI {
-    private final NeoplasmAIController deathMemory = new NeoplasmAIController();
+    protected final NeoplasmAIController deathMemory = new NeoplasmAIController();
 
-    public boolean isIgnoringDeathHeat() {
-        return deathMemory.ignoreDeathHeat;
+    public boolean isIgnoringDeathAvoidance() {
+        return deathMemory.ignore;
     }
 
-    public void setIgnoreDeathHeat(boolean ignore) {
-        deathMemory.ignoreDeathHeat = ignore;
+    public void setIgnoreDeathAvoidance(boolean ignore) {
+        deathMemory.ignore = ignore;
     }
 
     @Override
@@ -28,7 +28,7 @@ public class NeoplasmGroundAI extends GroundAI {
     @Override
     public void pathfind(int pathTarget, boolean stopAtTargetTile, boolean avoidance) {
         deathMemory.unit(unit);
-        if (!deathMemory.applyDodgePathfind(pathTarget)) {
+        if (!deathMemory.applyDodgePathfind(pathTarget, avoidance)) {
             super.pathfind(pathTarget, stopAtTargetTile, avoidance);
         }
     }
