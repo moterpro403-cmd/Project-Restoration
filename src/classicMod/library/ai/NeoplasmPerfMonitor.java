@@ -16,6 +16,7 @@ import mindustry.gen.Unit;
 public final class NeoplasmPerfMonitor {
     public static final int TIMER_PATH = 0;
     public static final int TIMER_STEERING = 1;
+    public static final int TIMER_HEAT = 2;
     public static final int TIMER_TURRET = 4;
     public static final int TIMER_TRAFFIC = 5;
     public static final int TIMER_CORD = 6;
