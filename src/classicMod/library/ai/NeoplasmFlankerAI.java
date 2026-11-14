@@ -13,26 +13,40 @@ import mindustry.world.meta.BlockFlag;
 
 import static mindustry.Vars.state;
 
+/**
+ * Flanking ground AI for articulated Neoplasm raiders (Scolopendra).
+ * Routes around fortified chokepoints via NeoplasmStrategicPathfinder,
+ * prioritizes exposed backline power/logistics, and triggers a defensive
+ * puddle-shed sprint when taking heavy fire.
+ */
 public class NeoplasmFlankerAI extends NeoplasmGroundAI {
-    public NeoplasmFlankerAI() {
-        deathMemory.dangerSensitivity = 0.72f;
-    }
-
     private static final Rand rand = new Rand();
     private static final BlockFlag[] flankPriorities = {
-            BlockFlag.generator, BlockFlag.battery, BlockFlag.drill,
-            BlockFlag.factory, BlockFlag.repair, BlockFlag.storage, BlockFlag.core
+            BlockFlag.generator,
+            BlockFlag.battery,
+            BlockFlag.drill,
+            BlockFlag.factory,
+            BlockFlag.repair,
+            BlockFlag.storage,
+            BlockFlag.core
     };
-    private float nextShedTime;
+
+    private float nextShedTime = 0f;
 
     @Override
     public void updateUnit() {
         super.updateUnit();
+        updateDefensiveShed();
+    }
+
+    private void updateDefensiveShed() {
         if (unit == null || !unit.isValid() || Time.time < nextShedTime) return;
         if (unit.healthf() < 0.55f && unit.damaged()) {
             nextShedTime = Time.time + 18f * 60f;
             Tile tile = unit.tileOn();
-            if (tile != null) Puddles.deposit(tile, Liquids.neoplasm, 14f);
+            if (tile != null) {
+                Puddles.deposit(tile, Liquids.neoplasm, 14f);
+            }
             unit.apply(StatusEffects.overdrive, 150f);
         }
     }
@@ -42,13 +56,12 @@ public class NeoplasmFlankerAI extends NeoplasmGroundAI {
         if (state.rules.randomWaveAI) {
             rand.setSeed(unit.type.id + (state.rules.waves ? state.wave : unit.id));
             for (int attempt = 0; attempt < 4; attempt++) {
-                Teamc result = targetFlagActive(x, y,
-                        flankPriorities[rand.random(flankPriorities.length - 1)], true);
+                Teamc result = targetFlagActive(x, y, flankPriorities[rand.random(flankPriorities.length - 1)], true);
                 if (result != null) return result;
             }
         } else {
             for (BlockFlag flag : flankPriorities) {
-                if (ground) {
+                if (flag != null && ground) {
                     Teamc result = targetFlagActive(x, y, flag, true);
                     if (result != null) return result;
                 }
@@ -61,22 +74,27 @@ public class NeoplasmFlankerAI extends NeoplasmGroundAI {
     public void updateMovement() {
         if (target != null && unit.hasWeapons()) {
             Tile destination = null;
-            if (target instanceof Building building) destination = building.tile;
-            else if (target instanceof Unit other) destination = other.tileOn();
+            if (target instanceof Building building) {
+                destination = building.tile;
+            } else if (target instanceof Unit other) {
+                destination = other.tileOn();
+            }
 
             float engageRange = unit.range() * 0.85f;
             if (destination != null && !unit.within(destination, engageRange)) {
-                // Preserve the selected backline target; the old fallback sent the
-                // flanker toward the core instead of continuing its raid.
-                if (!deathMemory.avoidNearbyDanger(destination)) {
-                    moveTo(target, engageRange * 0.82f);
+                if (!deathMemory.applyStrategicTarget(destination, engageRange, PathfinderCustom.costGround)) {
+                    pathfind(PathfinderCustom.fieldCore, true, true);
                 }
             } else {
-                moveTo(target, engageRange * 0.72f);
+                moveTo(target, engageRange * 0.7f);
             }
-            if (unit.type.faceTarget) unit.lookAt(target);
+
+            if (unit.type.faceTarget) {
+                unit.lookAt(target);
+            }
             return;
         }
+
         super.updateMovement();
     }
 }

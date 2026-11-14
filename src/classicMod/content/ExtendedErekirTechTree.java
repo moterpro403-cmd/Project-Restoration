@@ -94,6 +94,137 @@ public class ExtendedErekirTechTree {
         margeNode(UnitTypes.vanquish, () -> {
             //node(ClassicUnitTypes.howit, () -> node(ClassicUnitTypes.mantel));
         });
+
+        // Neoplasm campaign branch on Erekir.
+        // These sector presets are introduced after Onset, then chained as a four-stage campaign.
+        margeNode(onset, () -> {
+            node(RSectorPresents.contagionOutpost, Seq.with(new SectorComplete(onset)), () -> {});
+        });
+
+        margeNode(RSectorPresents.contagionOutpost, () -> {
+            node(RSectorPresents.viscousBasin, Seq.with(new SectorComplete(RSectorPresents.contagionOutpost)), () -> {});
+        });
+
+        margeNode(RSectorPresents.viscousBasin, () -> {
+            node(RSectorPresents.arterialRift, Seq.with(new SectorComplete(RSectorPresents.viscousBasin)), () -> {});
+        });
+
+        margeNode(RSectorPresents.arterialRift, () -> {
+            node(RSectorPresents.necroticCitadel, Seq.with(new SectorComplete(RSectorPresents.arterialRift)), () -> {});
+        });
+
+        // The Neoplasm construction line branches from Erekir's oxidation chamber.
+        // Research costs are explicit instead of inheriting the placeholder 1-beryllium block costs.
+        margeNode(oxidationChamber, () -> {
+            node(heart,
+                ItemStack.with(beryllium, 400, graphite, 250, silicon, 200),
+                Seq.with(new SectorComplete(RSectorPresents.contagionOutpost)),
+                () -> {
+                    node(cord,
+                        ItemStack.with(beryllium, 200, graphite, 100, silicon, 80),
+                        () -> {
+                            node(neoplasiaDrill,
+                                ItemStack.with(beryllium, 300, graphite, 180, silicon, 120),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(oxideCrafter,
+                                ItemStack.with(beryllium, 280, graphite, 160, silicon, 100),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(tole,
+                                ItemStack.with(beryllium, 260, graphite, 180, silicon, 100),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(neoplasiaBomb,
+                                ItemStack.with(beryllium, 220, graphite, 100, silicon, 100),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(bloom,
+                                ItemStack.with(beryllium, 450, graphite, 250, silicon, 200, oxide, 100),
+                                Seq.with(new SectorComplete(RSectorPresents.arterialRift)),
+                                () -> {}
+                            );
+
+                            node(pore,
+                                ItemStack.with(beryllium, 800, tungsten, 400, silicon, 350, oxide, 200),
+                                Seq.with(new SectorComplete(RSectorPresents.necroticCitadel)),
+                                () -> {}
+                            );
+
+                            // Early and mid-tier biological spawners.
+                            node(renaleSpawner,
+                                ItemStack.with(beryllium, 240, graphite, 120),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(muleSpawner,
+                                ItemStack.with(beryllium, 300, graphite, 180),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(squidSpawner,
+                                ItemStack.with(beryllium, 300, graphite, 180),
+                                Seq.with(new SectorComplete(RSectorPresents.viscousBasin)),
+                                () -> {}
+                            );
+
+                            node(walkySpawner,
+                                ItemStack.with(beryllium, 350, graphite, 200, oxide, 120),
+                                Seq.with(new SectorComplete(RSectorPresents.arterialRift)),
+                                () -> {}
+                            );
+
+                            node(hydroBomberSpawner,
+                                ItemStack.with(beryllium, 400, graphite, 250, oxide, 180),
+                                Seq.with(new SectorComplete(RSectorPresents.arterialRift)),
+                                () -> {}
+                            );
+
+                            node(siegeCrawlerSpawner,
+                                ItemStack.with(beryllium, 650, tungsten, 350, graphite, 250),
+                                Seq.with(new SectorComplete(RSectorPresents.necroticCitadel)),
+                                () -> {}
+                            );
+
+                            node(sporeCarrierSpawner,
+                                ItemStack.with(beryllium, 500, graphite, 300, oxide, 200),
+                                Seq.with(new SectorComplete(RSectorPresents.necroticCitadel)),
+                                () -> {}
+                            );
+
+                            // The three V9-inspired units are tied to campaign milestones.
+                            node(polyctenidSpawner,
+                                ItemStack.with(beryllium, 600, graphite, 300, oxide, 180, silicon, 150),
+                                Seq.with(new SectorComplete(RSectorPresents.arterialRift)),
+                                () -> {}
+                            );
+
+                            node(scolopendraSpawner,
+                                ItemStack.with(beryllium, 700, tungsten, 400, graphite, 300, oxide, 200),
+                                Seq.with(new SectorComplete(RSectorPresents.necroticCitadel)),
+                                () -> {}
+                            );
+
+                            node(mycelidSpawner,
+                                ItemStack.with(beryllium, 550, graphite, 350, oxide, 250, silicon, 150),
+                                Seq.with(new SectorComplete(RSectorPresents.necroticCitadel)),
+                                () -> {}
+                            );
+                        }
+                    );
+                }
+            );
+        });
     }
 
 

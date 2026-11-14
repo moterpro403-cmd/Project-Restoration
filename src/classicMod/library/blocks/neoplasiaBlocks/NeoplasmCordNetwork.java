@@ -263,6 +263,18 @@ public final class NeoplasmCordNetwork {
         return index >= 0 && index < teamTiles.length && teamTiles[index];
     }
 
+    /** True for living Neoplasm structures that can form part of a vascular chain. */
+    public static boolean isVascularBlock(Building building){
+        return building != null && building.isValid()
+            && building instanceof NeoplasmBlock.NeoplasmBuilding;
+    }
+
+    /** Building overload used by support organisms when checking a nearby artery. */
+    public static boolean isConnected(Building building){
+        return building != null && building.isValid() && building.tile != null
+            && isConnected(building.team, building.tile);
+    }
+
     /**
      * Finds a short four-direction route from a disconnected cord to any
      * Heart-connected tile. Only empty terrain, props, vents and friendly
