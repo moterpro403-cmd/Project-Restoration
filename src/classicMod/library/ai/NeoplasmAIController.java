@@ -265,6 +265,7 @@ public class NeoplasmAIController extends AIController {
 
         Tile best = null;
         float bestScore = Float.MAX_VALUE;
+        float bestRisk = Float.MAX_VALUE;
 
         for (Point2 direction : Geometry.d8) {
             Tile candidate = Vars.world.tile(current.x + direction.x, current.y + direction.y);
@@ -278,6 +279,7 @@ public class NeoplasmAIController extends AIController {
 
             if (score < bestScore) {
                 bestScore = score;
+                bestRisk = risk;
                 best = candidate;
             }
         }
