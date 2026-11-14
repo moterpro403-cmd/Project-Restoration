@@ -8,6 +8,10 @@ import mindustry.world.meta.BlockFlag;
 
 /** Standoff artillery behavior for Polyctenid. */
 public class NeoplasmArtilleryAI extends NeoplasmGroundAI {
+    public NeoplasmArtilleryAI() {
+        deathMemory.dangerSensitivity = 1.1f;
+    }
+
     private static final float holdRangeFraction = 0.78f;
     private static final float keepOutFraction = 0.36f;
     private static final BlockFlag[] siegePriorities = {
