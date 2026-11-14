@@ -118,7 +118,7 @@ public final class NeoplasmDeathHeatmap {
 
     private static boolean isDeathHeatSuppressed(Unit unit) {
         var controller = unit.controller();
-        if (controller instanceof NeoplasmAIController ai) return ai.ignoreDeathHeat;
+        if (controller instanceof NeoplasmAIController ai) return ai.ignore;
         if (controller instanceof NeoplasmFlyingAI ai) return ai.isIgnoringDeathAvoidance();
         if (controller instanceof NeoplasmGroundAI ai) return ai.isIgnoringDeathAvoidance();
         return false;
