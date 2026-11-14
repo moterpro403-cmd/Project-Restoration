@@ -62,13 +62,6 @@ public class HelperBlobAI extends NeoplasmAIController {
         Unit blob = Units.closest(unit.team, unit.x, unit.y, u -> u.controller() instanceof SteamHugAI hug && hug.stucked);
         Tile targetTile = getClosestVent(true);
         Tile desired = stage == 2 && blob != null ? blob.tileOn() : targetTile;
-        float stopDistance = stage == 1 ? 160f : unit.hitSize;
-        boolean hasStrategicDestination = stage != 2 || blob != null;
-        if (hasStrategicDestination && desired != null
-                && applyStrategicTarget(desired, stopDistance, PathfinderCustom.costNone)) {
-            super.updateMovement();
-            return;
-        }
         if (desired != null && avoidNearbyDanger(desired)) {
             super.updateMovement();
             return;

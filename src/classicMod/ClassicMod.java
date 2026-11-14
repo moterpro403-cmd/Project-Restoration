@@ -441,7 +441,6 @@ public class ClassicMod extends Mod {
     @Override
     public void loadContent() {
         registerConstructors();
-        NeoplasmDeathHeatmap.init();
         NeoplasmCordNetwork.init();
         NeoplasmPerfMonitor.init();
 
@@ -463,7 +462,7 @@ public class ClassicMod extends Mod {
         RMusic.load();
 
         // Wrap standard AI for rally behavior, but preserve Neoplasm's custom
-        // controllers: they contain the shared death-heat avoidance/pathfinding.
+        // controllers: they contain the original remembered-death avoidance.
         Events.on(EventType.ContentInitEvent.class, event -> {
             for (UnitType type : content.units()) {
                 if (type.controller == null) continue;
