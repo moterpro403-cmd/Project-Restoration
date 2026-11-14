@@ -40,10 +40,7 @@ public class NeoplasmArtilleryAI extends NeoplasmGroundAI {
         if (destination == null) {
             moveTo(target, holdRange);
         } else if (!unit.within(destination, holdRange)) {
-            boolean routed = deathMemory.applyStrategicTarget(
-                    destination, holdRange, PathfinderCustom.costLegs
-            );
-            if (!routed && !deathMemory.avoidNearbyDanger(destination)) {
+            if (!deathMemory.avoidNearbyDanger(destination)) {
                 moveTo(target, holdRange);
             }
         } else if (unit.within(target, keepOutRange)) {

@@ -288,11 +288,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         }
 
         private float cordRouteScore(Tile candidate, Tile objective) {
-            float score = candidate.dst(objective);
-            score += NeoplasmDeathHeatmap.getHeat(team, candidate) * 0.45f;
-            score += NeoplasmStrategicPathfinder.getTileThreat(team, candidate) * 0.08f;
-            score += NeoplasmStrategicPathfinder.getTileChokepoint(team, candidate) * 4.5f;
-            return score;
+            // Legacy cord growth follows the nearest useful objective.
+            return candidate.dst(objective);
         }
 
         public Tile pathfind(int pathTarget) {

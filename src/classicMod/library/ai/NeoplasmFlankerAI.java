@@ -64,10 +64,7 @@ public class NeoplasmFlankerAI extends NeoplasmGroundAI {
             if (destination != null && !unit.within(destination, engageRange)) {
                 // Preserve the selected backline target; the old fallback sent the
                 // flanker toward the core instead of continuing its raid.
-                boolean routed = deathMemory.applyStrategicTarget(
-                        destination, engageRange, PathfinderCustom.costGround
-                );
-                if (!routed && !deathMemory.avoidNearbyDanger(destination)) {
+                if (!deathMemory.avoidNearbyDanger(destination)) {
                     moveTo(target, engageRange * 0.82f);
                 }
             } else {

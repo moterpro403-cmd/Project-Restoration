@@ -10,12 +10,12 @@ import mindustry.ai.types.GroundAI;
 public class NeoplasmGroundAI extends GroundAI {
     protected final NeoplasmAIController deathMemory = new NeoplasmAIController();
 
-    public boolean isIgnoringDeathHeat() {
-        return deathMemory.ignoreDeathHeat;
+    public boolean isIgnoringDeathAvoidance() {
+        return deathMemory.ignore;
     }
 
-    public void setIgnoreDeathHeat(boolean ignore) {
-        deathMemory.ignoreDeathHeat = ignore;
+    public void setIgnoreDeathAvoidance(boolean ignore) {
+        deathMemory.ignore = ignore;
     }
 
     @Override

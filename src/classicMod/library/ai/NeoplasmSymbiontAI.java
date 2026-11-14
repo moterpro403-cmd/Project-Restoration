@@ -52,7 +52,7 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
         final float[] bestScore = {Float.MAX_VALUE};
         Units.nearby(unit.team, unit.x, unit.y, escortScanRadius, other -> {
             if (other != unit && other.isValid() && other.type != unit.type
-                    && other.hasWeapons() && NeoplasmDeathHeatmap.isNeoplasm(other)) {
+                    && other.hasWeapons() && NeoplasmAIController.isNeoplasmUnit(other)) {
                 float distanceScore = unit.dst2(other.x, other.y) / Math.max(250f, other.maxHealth);
                 if (distanceScore < bestScore[0]) {
                     bestScore[0] = distanceScore;
@@ -67,7 +67,7 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
         Seq<Unit> allies = new Seq<>();
         Units.nearby(unit.team, unit.x, unit.y, graftRadius, ally -> {
             if (ally != unit && ally.isValid() && ally.healthf() < 0.999f
-                    && NeoplasmDeathHeatmap.isNeoplasm(ally)) {
+                    && NeoplasmAIController.isNeoplasmUnit(ally)) {
                 allies.add(ally);
             }
         });
@@ -101,9 +101,9 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
                             || candidate.floor().isLiquid || candidate.solid() || candidate.block() != Blocks.air
                             || !RBlocks.cord.canPlaceOn(candidate, unit.team, 0)) continue;
 
-                    float heat = deathMemory.dangerDistance(candidate);
-                    float threat = NeoplasmStrategicPathfinder.getTileThreat(unit.team, candidate);
-                    float score = unit.dst2(candidate.worldx(), candidate.worldy()) + heat * 36f + threat * 12f;
+                    float nearestDeath = deathMemory.dangerDistance(candidate);
+                    float deathPenalty = nearestDeath < 80f ? (80f - nearestDeath) * 36f : 0f;
+                    float score = unit.dst2(candidate.worldx(), candidate.worldy()) + deathPenalty;
                     if (score < bestScore) {
                         bestScore = score;
                         best = candidate;
@@ -125,7 +125,7 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
         if (escortLeader != null && escortLeader.isValid()) {
             Tile leaderTile = escortLeader.tileOn();
             if (leaderTile != null && !unit.within(escortLeader, 52f)) {
-                if (!deathMemory.applyStrategicTarget(leaderTile, 44f, PathfinderCustom.costNone)) {
+                if (!deathMemory.avoidNearbyDanger(leaderTile)) {
                     moveTo(escortLeader, 44f);
                 }
             } else if (target != null && unit.type.faceTarget) {
@@ -138,7 +138,7 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
         if (target == null && state.rules.waves && unit.team == state.rules.defaultTeam) {
             Tile spawner = getClosestSpawner();
             if (spawner != null) {
-                if (!deathMemory.applyStrategicTarget(spawner, state.rules.dropZoneRadius + 130f, PathfinderCustom.costNone)) {
+                if (!deathMemory.avoidNearbyDanger(spawner)) {
                     moveTo(spawner, state.rules.dropZoneRadius + 130f);
                 }
             }
