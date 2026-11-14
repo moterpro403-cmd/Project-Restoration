@@ -19,6 +19,10 @@ import mindustry.world.meta.BlockFlag;
 import static mindustry.Vars.state;
 
 public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
+    public NeoplasmSymbiontAI() {
+        deathMemory.dangerSensitivity = 1.35f;
+    }
+
     private static final float escortScanRadius = 150f;
     private static final float graftRadius = 96f;
     private static final float graftPulseTicks = 180f;
@@ -101,8 +105,8 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
                             || candidate.floor().isLiquid || candidate.solid() || candidate.block() != Blocks.air
                             || !RBlocks.cord.canPlaceOn(candidate, unit.team, 0)) continue;
 
-                    float nearestDeath = deathMemory.dangerDistance(candidate);
-                    float deathPenalty = nearestDeath < 80f ? (80f - nearestDeath) * 36f : 0f;
+                    float deathRisk = deathMemory.getDangerRisk(candidate);
+                    float deathPenalty = deathRisk * 4200f;
                     float score = unit.dst2(candidate.worldx(), candidate.worldy()) + deathPenalty;
                     if (score < bestScore) {
                         bestScore = score;
