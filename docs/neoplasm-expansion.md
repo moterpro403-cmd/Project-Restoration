@@ -4,6 +4,31 @@ Target: Mindustry v8 build 160.7.
 
 This branch is the integration branch for extending Project: Restoration's existing Neoplasm implementation. It deliberately preserves the current `classicMod.ClassicMod` loader and the existing `RBlocks` / `RUnitTypes` definitions. The host source was not overwritten.
 
+## Primary baseline: Contagion Outpost Revamp v11
+
+The user-provided `Project-Restoration-Contagion-Outpost-Revamp-v11-Neoplasm-Colony-Fixed.jar` is the primary functional and visual reference for this branch. It is a built Project: Restoration mod, not a generic example project.
+
+- Mod version: `0.6.5-beta-neoplasm-sprite-update`
+- Minimum game version: `160.7`
+- Archive size: 48,086,607 bytes
+- SHA-256: `9d1b51cbf8a1855b093dc11d30b7f75ac95dc0df8b9152dc782211bf1549ebe2`
+- Contains 682 sprite files and 11 maps, including `maps/erekir/contagion-outpost.msav`
+
+### Baseline implementations confirmed in the JAR
+
+- Blocks: `CausticHeart`, `CausticCord`, `CausticDrill`, `CausticSpawner`, `CausticTurret`, `CausticCrafter`, `CausticMine`, and `NeoplasmBlock`.
+- Colony/network managers: `NeoplasmCordNetwork` (vascular connectivity, pressure propagation, reconnect/repair queue), `NeoplasmGrowthLimiter`, and `NeoplasmPopulation`.
+- AI/pathfinding: `NeoplasmAIController` (casualty/death memory and danger sampling), `NeoplasmGroundAI`, `NeoplasmFlyingAI`, `NeoplasmFlankerAI`, `NeoplasmArtilleryAI`, `NeoplasmSymbiontAI`, `NeoplasmHugAI`, `NeoplasmPerfMonitor`, and `PathfinderCustom`.
+- `PathfinderCustom` exposes D4 target selection, dodge target selection, and separate core, steam-vent, and ore fields.
+- Existing units include Blob, Pallium, Worm, Mule, Kalyx, Hydro Bomber, Miserable, and the additional Siege Crawler, Spore Carrier, Polyctenid, Scolopendra, and Mycelid types.
+- The JAR includes the v8-prototype Neoplasm and unit sprite families.
+
+### Reconciliation with repository source
+
+The repository already has the core `RBlocks.java`, `RUnitTypes.java`, Caustic block classes, `NeoplasmAIController.java`, `NeoplasmFlyingAI.java`, and `PathfinderCustom.java`. The supplied v11 JAR contains additional compiled implementations not present as Java files on the current master source tree, including the network/growth/population managers and several AI variants listed above. Those need to be recovered/reimplemented and reviewed against the JAR behavior before calling the source tree equivalent.
+
+The JAR is a compiled reference and asset baseline; it does not include Java source. Do not claim exact source recovery from it. Keep its content IDs, balance, visuals, and working behavior as the baseline where verifiable. New ideas from the larger expansion brief should be implemented as additive extensions, not as a replacement for the existing colony system.
+
 ## Existing foundations
 
 - `src/classicMod/content/RBlocks.java`: Neoplasm cord, Heart, turrets, spawners, mine and drill.
