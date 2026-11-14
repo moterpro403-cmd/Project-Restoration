@@ -1,77 +1,113 @@
 package classicMod.library.ai;
 
+import arc.Events;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
-import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.Nullable;
 import arc.util.Time;
 import classicMod.content.RUnitTypes;
 import classicMod.content.RVars;
-import classicMod.library.GeometryPlus;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
+import mindustry.ai.types.SuicideAI;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
-import mindustry.entities.Units;
 import mindustry.entities.units.AIController;
-import mindustry.ai.types.SuicideAI;
-import mindustry.gen.*;
+import mindustry.game.EventType;
 import mindustry.game.Team;
+import mindustry.gen.*;
 import mindustry.world.Tile;
 
 /**
- * Original Neoplasm group-based death avoidance.
- * Nearby Neoplasm deaths mark a small danger fringe; units follow the normal
- * flowfield but detour around those remembered tiles. No heatmap or Dijkstra map.
+ * Lightweight, shared memory of recent Neoplasm deaths.
+ *
+ * Deaths are stored as discrete locations with a short lifetime; this is not a
+ * heatmap and does not build a map-wide route. Each controller gets a small,
+ * team-local snapshot and uses the normal Mindustry flowfield with local detours.
  */
 public class NeoplasmAIController extends AIController {
-    public final Seq<Tile> DodgeTile = new Seq<>();
-    public final Seq<Unit> groups = new Seq<>();
-    /** Suppress a danger marker for intentional removal, such as cord placement. */
-    public boolean ignore;
+    private static final int maxDeathMarks = 80;
+    private static final float deathMemoryLifetime = 60f * 60f;
+    private static final float deathMergeRadius = 2.5f;
+    private static final float dangerTriggerRadius = 88f;
+    private static final float dangerSafeRadius = 64f;
+    private static final float pathfinderSafeRadius = 56f;
 
-    private final ObjectSet<Unit> knownNeoplasms = new ObjectSet<>();
-    private final Seq<Unit> neoplasmGroup = new Seq<>();
-    private final Seq<Unit> deadUnitBuffer = new Seq<>();
-    private float discoveryTimer;
+    private static final Seq<DeathMark> deathMarks = new Seq<>();
+    private static boolean initialized;
+    private static int memoryRevision;
+    private static float nextPruneTime;
 
-    @Override
-    public void updateUnit() {
-        updateNeoplasmTracking();
-        super.updateUnit();
+    private static class DeathMark {
+        final Team team;
+        final Tile tile;
+        float expiresAt;
+
+        DeathMark(Team team, Tile tile, float expiresAt) {
+            this.team = team;
+            this.tile = tile;
+            this.expiresAt = expiresAt;
+        }
     }
 
-    /** Discover nearby allies and remember an eight-tile ring around tracked deaths. */
-    public void updateNeoplasmTracking() {
-        if (unit == null || Vars.world == null || (Vars.net != null && Vars.net.client())) return;
+    /** Discrete remembered death locations for this unit's team. */
+    public final Seq<Tile> DodgeTile = new Seq<>();
+    /** Retained for compatibility with older Neoplasm controllers. */
+    public final Seq<Unit> groups = new Seq<>();
+    /** Suppress a marker for intentional removal, such as CausticCord placement. */
+    public boolean ignore;
 
-        if (discoveryTimer <= 0f) {
-            discoveryTimer = 10f;
-            Unit neo = Units.closest(unit.team, unit.x, unit.y,
-                    other -> other != unit && !knownNeoplasms.contains(other) && isNeoplasmUnit(other));
-            if (neo != null) {
-                knownNeoplasms.add(neo);
-                neoplasmGroup.add(neo);
+    private int syncedMemoryRevision = -1;
+    private int syncedTeamId = -1;
+
+    /** Register the death listener once. Called from ClassicMod.loadContent(). */
+    public static void init() {
+        if (initialized) return;
+        initialized = true;
+
+        Events.on(EventType.UnitDestroyEvent.class, event -> recordDeath(event.unit));
+        Events.on(EventType.WorldLoadEvent.class, event -> clearDeathMemory());
+        Events.on(EventType.ResetEvent.class, event -> clearDeathMemory());
+    }
+
+    private static void clearDeathMemory() {
+        deathMarks.clear();
+        nextPruneTime = 0f;
+        memoryRevision++;
+    }
+
+    private static void recordDeath(Unit dead) {
+        if (dead == null || Vars.world == null || isSuicideBomber(dead)
+                || !isNeoplasmUnit(dead) || ignoresDeathAvoidance(dead)) return;
+
+        Tile tile = dead.tileOn();
+        if (tile == null) tile = Vars.world.tile(dead.tileX(), dead.tileY());
+        if (tile == null) return;
+
+        float expiresAt = Time.time + deathMemoryLifetime;
+
+        // Nearby deaths refresh one location instead of creating a growing pile
+        // of almost-identical markers during large battles.
+        for (DeathMark mark : deathMarks) {
+            if (mark.team == dead.team && mark.tile != null
+                    && mark.tile.dst(tile) <= deathMergeRadius) {
+                mark.expiresAt = expiresAt;
+                memoryRevision++;
+                return;
             }
-        } else {
-            discoveryTimer -= Time.delta;
         }
 
-        deadUnitBuffer.clear();
-        for (Unit ally : neoplasmGroup) {
-            if (ally == null || !ally.dead) continue;
-            Tile deadTile = ally.tileOn();
-            if (deadTile != null && !ignoresDeathAvoidance(ally)) {
-                for (Point2 point : GeometryPlus.d8plus) {
-                    Tile danger = Vars.world.tile(deadTile.x + point.x, deadTile.y + point.y);
-                    if (danger != null) DodgeTile.addUnique(danger);
-                }
+        if (deathMarks.size >= maxDeathMarks) {
+            int oldest = 0;
+            for (int i = 1; i < deathMarks.size; i++) {
+                if (deathMarks.get(i).expiresAt < deathMarks.get(oldest).expiresAt) oldest = i;
             }
-            deadUnitBuffer.add(ally);
-            knownNeoplasms.remove(ally);
+            deathMarks.remove(oldest);
         }
-        neoplasmGroup.removeAll(deadUnitBuffer);
+
+        deathMarks.add(new DeathMark(dead.team, tile, expiresAt));
+        memoryRevision++;
     }
 
     private static boolean ignoresDeathAvoidance(Unit ally) {
@@ -81,6 +117,44 @@ public class NeoplasmAIController extends AIController {
         if (controller instanceof NeoplasmGroundAI ai) return ai.isIgnoringDeathAvoidance();
         if (controller instanceof NeoplasmHugAI ai) return ai.isIgnoringDeathAvoidance();
         return false;
+    }
+
+    private static void pruneDeathMemory() {
+        if (Time.time < nextPruneTime) return;
+        nextPruneTime = Time.time + 30f;
+
+        boolean removed = false;
+        for (int i = deathMarks.size - 1; i >= 0; i--) {
+            DeathMark mark = deathMarks.get(i);
+            if (mark.tile == null || Time.time >= mark.expiresAt) {
+                deathMarks.remove(i);
+                removed = true;
+            }
+        }
+        if (removed) memoryRevision++;
+    }
+
+    @Override
+    public void updateUnit() {
+        updateNeoplasmTracking();
+        super.updateUnit();
+    }
+
+    /** Refresh this controller's bounded snapshot when a death is recorded or expires. */
+    public void updateNeoplasmTracking() {
+        if (unit == null || Vars.world == null || (Vars.net != null && Vars.net.client())) return;
+        init();
+        pruneDeathMemory();
+
+        if (syncedMemoryRevision == memoryRevision && syncedTeamId == unit.team.id) return;
+
+        DodgeTile.clear();
+        for (DeathMark mark : deathMarks) {
+            if (mark.team == unit.team && mark.tile != null) DodgeTile.add(mark.tile);
+        }
+
+        syncedMemoryRevision = memoryRevision;
+        syncedTeamId = unit.team.id;
     }
 
     public static boolean isNeoplasmUnit(Unit ally) {
@@ -132,7 +206,8 @@ public class NeoplasmAIController extends AIController {
         float bestDistance = Float.MAX_VALUE;
         for (Tile tile : PathfinderExtended.SteamVents) {
             if (tile == null || tile.build instanceof CausticHeart.HeartBuilding) continue;
-            Building enemy = Units.findEnemyTile(unit.team, tile.worldx(), tile.worldy(), 240f, build -> !build.dead);
+            Building enemy = mindustry.entities.Units.findEnemyTile(unit.team, tile.worldx(), tile.worldy(),
+                    240f, build -> !build.dead);
             if (enemy != null && tile.dst(enemy) <= 80f) continue;
             float distance = unit.dst2(tile.worldx(), tile.worldy());
             if (distance < bestDistance) {
@@ -143,28 +218,7 @@ public class NeoplasmAIController extends AIController {
         return closest;
     }
 
-    @Nullable
-    public Tile getClosestTarget(int range) {
-        if (unit == null || Vars.world == null) return null;
-        int mid = Math.max(1, range / 2);
-        Tile best = null;
-        float bestDistance = Float.MAX_VALUE;
-        for (int y = -mid; y <= mid; y++) {
-            for (int x = -mid; x <= mid; x++) {
-                Tile candidate = Vars.world.tile(unit.tileX() + x, unit.tileY() + y);
-                if (candidate == null || candidate.block() != Blocks.air
-                        || candidate.floor() == null || candidate.floor().isLiquid) continue;
-                float distance = target == null ? candidate.dst2(unit) : candidate.dst2(target);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    best = candidate;
-                }
-            }
-        }
-        return best;
-    }
-
-    /** Nearest remembered death tile; larger values mean safer locations. */
+    /** Distance to the nearest remembered death location. Larger means safer. */
     public float dangerDistance(Tile tile) {
         if (tile == null || DodgeTile.isEmpty()) return Float.MAX_VALUE;
         float nearest = Float.MAX_VALUE;
@@ -190,71 +244,82 @@ public class NeoplasmAIController extends AIController {
         return closest;
     }
 
+    /**
+     * Find a passable detour that clears every remembered death location.
+     * If no fully safe tile is in range, choose the step that most improves clearance.
+     */
     @Nullable
     public Tile getClosestTarget(int range, Tile closestDanger, Tile targetTile, Unit movingUnit) {
-        if (closestDanger == null || targetTile == null || movingUnit == null || Vars.world == null) return null;
-        int mid = Math.max(1, range / 2);
-        Tile best = null;
-        float bestTargetDistance = Float.MAX_VALUE;
-        for (int y = -mid; y <= mid; y++) {
-            for (int x = -mid; x <= mid; x++) {
+        if (targetTile == null || movingUnit == null || Vars.world == null) return null;
+
+        Tile current = movingUnit.tileOn();
+        if (current == null) return null;
+
+        int radius = Math.max(2, range / 2);
+        float currentClearance = dangerDistance(current);
+        Tile bestSafe = null, bestEscape = null;
+        float bestSafeScore = Float.MAX_VALUE;
+        float bestEscapeScore = Float.MAX_VALUE;
+        boolean naval = movingUnit.type.flowfieldPathType == PathfinderCustom.costNaval;
+
+        for (int y = -radius; y <= radius; y++) {
+            for (int x = -radius; x <= radius; x++) {
                 Tile candidate = Vars.world.tile(movingUnit.tileX() + x, movingUnit.tileY() + y);
-                if (candidate == null || candidate.block() != Blocks.air
-                        || candidate.floor() == null || candidate.floor().isLiquid
-                        || !movingUnit.canPass(candidate.x, candidate.y)) continue;
-                if (closestDanger.dst(candidate) < 80f) continue;
-                float unitDistance = movingUnit.dst(candidate);
-                if (unitDistance < 10f || unitDistance > 100f) continue;
+                if (candidate == null || candidate == current || candidate.block() != Blocks.air
+                        || candidate.floor() == null || !movingUnit.canPass(candidate.x, candidate.y)) continue;
+                if (naval ? !candidate.floor().isLiquid : candidate.floor().isLiquid) continue;
+
+                float clearance = dangerDistance(candidate);
                 float targetDistance = candidate.dst(targetTile);
-                if (targetDistance < bestTargetDistance) {
-                    bestTargetDistance = targetDistance;
-                    best = candidate;
+                float travelDistance = movingUnit.dst(candidate);
+
+                if (clearance > dangerSafeRadius) {
+                    float score = targetDistance + travelDistance * 0.55f
+                            - Math.min(clearance - dangerSafeRadius, 80f) * 0.08f;
+                    if (score < bestSafeScore) {
+                        bestSafeScore = score;
+                        bestSafe = candidate;
+                    }
+                } else if (clearance > currentClearance + 0.5f) {
+                    // Emergency movement: prioritize getting farther from danger,
+                    // but use the intended destination to break ties.
+                    float improvement = clearance - currentClearance;
+                    float score = -improvement * 2.5f + targetDistance * 0.025f
+                            + travelDistance * 0.15f;
+                    if (score < bestEscapeScore) {
+                        bestEscapeScore = score;
+                        bestEscape = candidate;
+                    }
                 }
             }
         }
-        return best;
+
+        return bestSafe != null ? bestSafe : bestEscape;
     }
 
     @Nullable
     public Tile getEdgeEscapeTile() {
-        if (unit == null || Vars.world == null) return null;
-        Tile best = null;
-        float bestDistance = Float.MAX_VALUE;
-        for (Tile danger : DodgeTile) {
-            if (danger == null) continue;
-            for (Point2 offset : Geometry.d8) {
-                Tile candidate = Vars.world.tile(danger.x + offset.x, danger.y + offset.y);
-                if (candidate == null || DodgeTile.contains(candidate)
-                        || candidate.block() != Blocks.air || candidate.floor() == null
-                        || candidate.floor().isLiquid || !unit.canPass(candidate.x, candidate.y)) continue;
-                float distance = candidate.dst(unit);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    best = candidate;
-                }
-            }
-        }
-        return best;
+        Tile danger = closestDanger();
+        Tile current = unit == null ? null : unit.tileOn();
+        return danger == null || current == null ? null
+                : getClosestTarget(19, danger, current, unit);
     }
 
-    /** Detour direct movement when the unit is close to a remembered death zone. */
+    /** Detour direct movement before it enters a recently lethal area. */
     public boolean avoidNearbyDanger(Tile destination) {
         if (unit == null || destination == null || isSuicideBomber(unit)) return false;
         Tile current = unit.tileOn();
-        Tile danger = closestDanger();
-        if (current == null || danger == null || danger.dst(current) >= 80f) return false;
+        if (current == null || dangerDistance(current) >= dangerTriggerRadius) return false;
 
-        Tile safe = getClosestTarget(15, danger, destination, unit);
-        if (safe == null) safe = getEdgeEscapeTile();
-        if (safe == null || safe == current || !unit.canPass(safe.x, safe.y)) {
-            DodgeTile.remove(danger);
-            return false;
-        }
+        Tile safe = getClosestTarget(19, closestDanger(), destination, unit);
+        // Holding position is safer than blindly re-entering a remembered death zone.
+        if (safe == null) return true;
+
         unit.movePref(vec.set(safe.worldx(), safe.worldy()).sub(unit).limit(unit.speed()));
         return true;
     }
 
-    /** Follow the old flowfield while avoiding recorded death zones. */
+    /** Follow the normal flowfield, but step around recent death locations. */
     public boolean applyDodgePathfind(int pathTarget) {
         if (unit == null || isSuicideBomber(unit) || RVars.pathfinderCustom == null) return false;
         Tile current = unit.tileOn();
@@ -264,15 +329,17 @@ public class NeoplasmAIController extends AIController {
         Tile next = RVars.pathfinderCustom.getTargetTileDodge(
                 current, RVars.pathfinderCustom.getField(unit.team, costType, pathTarget), DodgeTile
         );
-        Tile danger = closestDanger();
-        if (danger != null && danger.dst(current) < 80f) {
-            Tile safe = getClosestTarget(15, danger, next == null ? current : next, unit);
-            next = safe != null ? safe : getEdgeEscapeTile();
-            if (next == null) DodgeTile.remove(danger);
+
+        if (dangerDistance(current) < dangerTriggerRadius) {
+            Tile safe = getClosestTarget(19, closestDanger(), next == null ? current : next, unit);
+            if (safe == null) return true;
+            next = safe;
         }
 
         if (next == null || next == current || !unit.canPass(next.x, next.y)) return false;
-        if (costType == 2 && (next.floor() == null || !next.floor().isLiquid)) return false;
+        if (costType == PathfinderCustom.costNaval
+                && (next.floor() == null || !next.floor().isLiquid)) return false;
+
         NeoplasmPerfMonitor.riskDecision();
         unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
         return true;
@@ -296,7 +363,8 @@ public class NeoplasmAIController extends AIController {
                 current, Vars.pathfinder.getField(unit.team, unit.type.flowfieldPathType, pathTarget)
         );
         if (next != null && next != current && unit.canPass(next.x, next.y)
-                && (unit.type.flowfieldPathType != 2 || (next.floor() != null && next.floor().isLiquid))) {
+                && (unit.type.flowfieldPathType != PathfinderCustom.costNaval
+                || (next.floor() != null && next.floor().isLiquid))) {
             unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
         }
     }
