@@ -62,7 +62,7 @@ public class NeoplasmAIController extends AIController {
     private int syncedTeamId = -1;
 
     /** Register the death listener once. Called from ClassicMod.loadContent(). */
-    public static void init() {
+    public static void initializeDeathMemory() {
         if (initialized) return;
         initialized = true;
 
@@ -143,7 +143,7 @@ public class NeoplasmAIController extends AIController {
     /** Refresh this controller's bounded snapshot when a death is recorded or expires. */
     public void updateNeoplasmTracking() {
         if (unit == null || Vars.world == null || (Vars.net != null && Vars.net.client())) return;
-        init();
+        initializeDeathMemory();
         pruneDeathMemory();
 
         if (syncedMemoryRevision == memoryRevision && syncedTeamId == unit.team.id) return;
