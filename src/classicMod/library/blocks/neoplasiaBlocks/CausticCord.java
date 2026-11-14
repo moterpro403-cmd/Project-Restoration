@@ -407,7 +407,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         ||
                                 ((getTotal(Items.graphite, 3) >= 5))
 
-                ){
+                )){
                     if ((items.has(Items.oxide) || getTotal(Items.oxide, 3) >= 5)
                             && Mathf.chance(0.12f)) ReplaceTo(RBlocks.polyctenidSpawner);
                     else if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
@@ -422,7 +422,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         right() == null)
                         ||
                                 ((getTotal(Items.oxide, 3) >= 5))
-                ){
+                )){
 
                     if (Mathf.chance(0.15f)) ReplaceTo(RBlocks.mycelidSpawner);
                     else if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
