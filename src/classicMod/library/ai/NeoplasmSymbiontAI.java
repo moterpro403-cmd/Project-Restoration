@@ -14,7 +14,6 @@ import mindustry.entities.Units;
 import mindustry.gen.Teamc;
 import mindustry.gen.Unit;
 import mindustry.world.Tile;
-import mindustry.world.blocks.defense.Wall;
 import mindustry.world.meta.BlockFlag;
 
 import static mindustry.Vars.state;
@@ -22,7 +21,7 @@ import static mindustry.Vars.state;
 public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
     private static final float escortScanRadius = 150f;
     private static final float graftRadius = 96f;
-    private static final float graftPulseTicks = 300f;
+    private static final float graftPulseTicks = 180f;
     private static final float cordBridgeTicks = 360f;
 
     private Unit escortLeader;
@@ -50,28 +49,36 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
 
     private void refreshEscortLeader() {
         escortLeader = null;
-        final float[] bestHealth = {0f};
+        final float[] bestScore = {Float.MAX_VALUE};
         Units.nearby(unit.team, unit.x, unit.y, escortScanRadius, other -> {
             if (other != unit && other.isValid() && other.type != unit.type
-                    && NeoplasmDeathHeatmap.isNeoplasm(other) && other.maxHealth > bestHealth[0]) {
-                bestHealth[0] = other.maxHealth;
-                escortLeader = other;
+                    && other.hasWeapons() && NeoplasmDeathHeatmap.isNeoplasm(other)) {
+                float distanceScore = unit.dst2(other.x, other.y) / Math.max(250f, other.maxHealth);
+                if (distanceScore < bestScore[0]) {
+                    bestScore[0] = distanceScore;
+                    escortLeader = other;
+                }
             }
         });
     }
 
     private void pulseTissueGraft() {
-        // Heal the three most damaged nearby Neoplasm allies first.
+        // Repair the three most injured Neoplasm allies and reinforce them.
         Seq<Unit> allies = new Seq<>();
         Units.nearby(unit.team, unit.x, unit.y, graftRadius, ally -> {
-            if (ally != unit && ally.isValid() && NeoplasmDeathHeatmap.isNeoplasm(ally)) {
+            if (ally != unit && ally.isValid() && ally.healthf() < 0.999f
+                    && NeoplasmDeathHeatmap.isNeoplasm(ally)) {
                 allies.add(ally);
             }
         });
         allies.sort(ally -> ally.healthf());
         graftedCount = Math.min(3, allies.size);
         for (int i = 0; i < graftedCount; i++) {
-            allies.get(i).apply(StatusEffects.shielded, 180f);
+            Unit ally = allies.get(i);
+            float missingHealth = Math.max(0f, ally.maxHealth - ally.health);
+            float graftAmount = Math.min(missingHealth, Math.max(40f, ally.maxHealth * 0.08f));
+            if (graftAmount > 0f) ally.heal(graftAmount);
+            ally.apply(StatusEffects.shielded, 240f);
         }
     }
 
@@ -109,8 +116,6 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
 
     @Override
     public Teamc findMainTarget(float x, float y, float range, boolean air, boolean ground) {
-        Teamc wall = Units.findEnemyTile(unit.team, x, y, range * 1.15f, b -> b.block instanceof Wall);
-        if (wall != null) return wall;
         Teamc turret = targetFlag(x, y, BlockFlag.turret, true);
         return turret != null ? turret : super.findMainTarget(x, y, range, air, ground);
     }
@@ -123,10 +128,10 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
                 if (!deathMemory.applyStrategicTarget(leaderTile, 44f, PathfinderCustom.costNone)) {
                     moveTo(escortLeader, 44f);
                 }
-            } else {
-                circleAttack(56f);
+            } else if (target != null && unit.type.faceTarget) {
+                // Hold formation near the escort while continuing to fire.
+                unit.lookAt(target);
             }
-            if (target != null && unit.type.faceTarget) unit.lookAt(target);
             return;
         }
 

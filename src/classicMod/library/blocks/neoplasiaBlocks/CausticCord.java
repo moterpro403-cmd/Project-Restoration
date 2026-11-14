@@ -393,7 +393,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                         ||
                                 (getTotal(Items.beryllium, 3) >= 5)
                 ){
-                    if (Mathf.chance(0.18f)) ReplaceTo(RBlocks.scolopendraSpawner);
+                    if (Mathf.chance(0.32f)) ReplaceTo(RBlocks.scolopendraSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.renaleSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.walkySpawner);
                     else ReplaceTo(RBlocks.oxideCrafter);
@@ -409,7 +409,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
                 )){
                     if ((items.has(Items.oxide) || getTotal(Items.oxide, 3) >= 5)
-                            && Mathf.chance(0.12f)) ReplaceTo(RBlocks.polyctenidSpawner);
+                            && Mathf.chance(0.25f)) ReplaceTo(RBlocks.polyctenidSpawner);
                     else if (Mathf.chance(0.12f)) ReplaceTo(RBlocks.siegeCrawlerSpawner);
                     else if (Mathf.randomBoolean(0.5f)) ReplaceTo(RBlocks.muleSpawner);
                     else ReplaceTo(RBlocks.squidSpawner);
@@ -424,7 +424,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                                 ((getTotal(Items.oxide, 3) >= 5))
                 )){
 
-                    if (Mathf.chance(0.15f)) ReplaceTo(RBlocks.mycelidSpawner);
+                    if (Mathf.chance(0.30f)) ReplaceTo(RBlocks.mycelidSpawner);
                     else if (Mathf.chance(0.10f)) ReplaceTo(RBlocks.sporeCarrierSpawner);
                     else ReplaceTo(RBlocks.hydroBomberSpawner);
                     cordMode = false;

@@ -24,6 +24,7 @@ public class CausticSpawner extends NeoplasmBlock {
 
     public CausticSpawner(String name) {
         super(name);
+        itemCapacity = 20;
     }
 
     @Override
@@ -43,7 +44,13 @@ public class CausticSpawner extends NeoplasmBlock {
         public float progress, speedScl;
 
         public float fraction(){
-            return progress / spawnTime;
+            return spawnTime <= 0f ? 0f : progress / spawnTime;
+        }
+
+        @Override
+        public boolean deathImminent() {
+            // A spawner must not expire merely because its cord pulse is interrupted.
+            return false;
         }
 
         @Override
@@ -60,68 +67,84 @@ public class CausticSpawner extends NeoplasmBlock {
         }
 
         public void updateEfficiency(){
-            boolean hasItems = false;
+            boolean hasItemConsumer = false;
+            boolean allItemsPresent = true;
             for (var consume : consumeBuilder){
                 if (consume instanceof ConsumeItems consumeItems){
+                    hasItemConsumer = true;
                     for (var itemStack : consumeItems.items){
-                        hasItems = items.has(itemStack.item);
-                        if (hasItems) break;
+                        if (items.get(itemStack.item) < itemStack.amount){
+                            allItemsPresent = false;
+                            break;
+                        }
                     }
                 }
+                if (!allItemsPresent) break;
             }
-            efficiency = (hasItems) ? 1f : 0f;
+            efficiency = hasItemConsumer && allItemsPresent ? 1f : 0f;
+        }
+
+        private void spawnUnit(){
+            if (Vars.net.client() || spawn == null || !isGrown()
+                || efficiency <= 0f || !Units.canCreate(team, spawn)
+                || !NeoplasmPopulation.canSpawn(team, spawn)) return;
+
+            var unit = spawn.create(team);
+            if (unit == null) return;
+
+            consume();
+            progress = 0f;
+            speedScl = 0f;
+            if (spawnEffect != null){
+                spawnEffect.at(x, y, spawnColor != null ? spawnColor : Color.white);
+            }
+            unit.set(this);
+            unit.rotation(90f);
+            unit.add();
+
+            if (selfDestruct){
+                var dTile = proximityTiles.copy().removeAll(t ->
+                    t == null || !(t.build instanceof CausticCord.CordBuild)
+                );
+                if (!dTile.isEmpty()){
+                    Tile ontile = dTile.get(Mathf.random(dTile.size - 1));
+                    if (ontile != null && ontile.build instanceof CausticCord.CordBuild cordBuild){
+                        for (int dy = -size; dy < size; dy++){
+                            for (int dx = -size; dx < size; dx++){
+                                Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
+                                if (tile != null && tile.build == this && !cordBuild.Queue.contains(tile)){
+                                    cordBuild.Queue.add(tile);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (tile != null && tile.build == this) tile.setBlock(pipe, team);
+            }
         }
 
         @Override
         public void update() {
             super.update();
             updateEfficiency();
-            if (efficiency > 0){
-                progress = Math.min(spawnTime, progress + edelta() * speedScl);
+            if (!isGrown()) return;
+
+            if (efficiency > 0f){
+                // edelta() already accounts for required-item efficiency.
+                progress = Math.min(spawnTime, progress + edelta());
                 speedScl = Mathf.lerpDelta(speedScl, 1f, 0.05f);
             } else {
                 speedScl = Mathf.lerpDelta(speedScl, 0f, 0.05f);
             }
+
+            // Production is independent of the Neoplasm heartbeat network.
+            if (progress >= spawnTime) spawnUnit();
         }
 
         @Override
         public void updateBeat() {
             super.updateBeat();
             growCord(pipe);
-            if (progress >= spawnTime && spawn != null
-                && Units.canCreate(team, spawn)
-                && NeoplasmPopulation.canSpawn(team, spawn)){
-                consume();
-                progress = 0f;
-                speedScl = 0f;
-                if (spawnEffect != null) spawnEffect.at(this.x, this.y, (spawnColor != null) ? spawnColor : Color.white);
-                var unit = spawn.create(team);
-                unit.set(this);
-                unit.rotation(90f);
-                unit.add();
-                if (selfDestruct){
-                    var dTile = proximityTiles.copy().removeAll(t ->
-                        t == null || !(t.build instanceof CausticCord.CordBuild)
-                    );
-
-                    // A spawner can finish at the edge of a disconnected cord.
-                    // If no adjacent cord remains, still replace the spawner safely.
-                    if (!dTile.isEmpty()) {
-                        Tile ontile = dTile.get(Mathf.random(dTile.size - 1));
-                        if (ontile != null && ontile.build instanceof CausticCord.CordBuild cordBuild){
-                            for (int dy = -size; dy < size; dy++) {
-                                for (int dx = -size; dx < size; dx++) {
-                                    Tile tile = Vars.world.tile(ontile.x + dx, ontile.y + dy);
-                                    if (tile != null && tile.build == this && !cordBuild.Queue.contains(tile)) {
-                                        cordBuild.Queue.add(tile);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    tile.setBlock(pipe, team);
-                }
-            }
         }
     }
 }

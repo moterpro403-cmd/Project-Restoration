@@ -1202,7 +1202,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             requirements(Category.distribution, with(Items.beryllium, 1));
             consumeItems(with(Items.oxide, 1, Items.graphite, 1));
             size = 4;
-            selfDestruct = true;
+            selfDestruct = false;
             spawn = RUnitTypes.polyctenid;
             spawnEffect = RFx.smokeColor;
             spawnColor = Liquids.neoplasm.color;
@@ -1213,7 +1213,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             requirements(Category.distribution, with(Items.beryllium, 1));
             consumeItems(with(Items.beryllium, 1));
             size = 3;
-            selfDestruct = true;
+            selfDestruct = false;
             spawn = RUnitTypes.scolopendra;
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
@@ -1224,7 +1224,7 @@ heatReactor, //Heat Producers - Erekir - Prototype [v7-dev]
             requirements(Category.distribution, with(Items.beryllium, 1));
             consumeItems(with(Items.oxide, 1));
             size = 3;
-            selfDestruct = true;
+            selfDestruct = false;
             spawn = RUnitTypes.mycelid;
             spawnEffect = RFx.smokeColor;
             spawnColor = Color.valueOf("8a54a6");
