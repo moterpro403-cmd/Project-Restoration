@@ -602,6 +602,7 @@ public class RUnitTypes {
 
         // Heavy six-legged artillery organism.
         polyctenid = new UnitType("polyctenid"){{
+            useUnitCap = false;
             constructor = LegsUnit::create;
             controller = u -> new NeoplasmArtilleryAI();
             playerControllable = false;
@@ -661,6 +662,7 @@ public class RUnitTypes {
 
         // Fast segmented raider that seeks exposed logistics and backline targets.
         scolopendra = new UnitType("scolopendra"){{
+            useUnitCap = false;
             constructor = CrawlUnit::create;
             controller = u -> new NeoplasmFlankerAI();
             playerControllable = false;
@@ -696,6 +698,7 @@ public class RUnitTypes {
 
         // Low-altitude support organism that escorts allies and extends arteries.
         mycelid = new UnitType("mycelid"){{
+            useUnitCap = false;
             constructor = UnitEntity::create;
             controller = u -> new NeoplasmSymbiontAI();
             playerControllable = false;

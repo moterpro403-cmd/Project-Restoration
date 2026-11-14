@@ -6,7 +6,9 @@ import arc.graphics.g2d.*;
 import arc.math.Mathf;
 import mindustry.Vars;
 import mindustry.entities.*;
+import mindustry.type.Item;
 import mindustry.type.UnitType;
+import mindustry.gen.Building;
 import mindustry.world.Tile;
 import mindustry.world.consumers.ConsumeItems;
 
@@ -66,6 +68,19 @@ public class CausticSpawner extends NeoplasmBlock {
             if (topRegion.found()) Draw.rect(topRegion, x, y);
         }
 
+        @Override
+        public boolean acceptItem(Building source, Item item){
+            if (item == null || items.total() >= itemCapacity) return false;
+            for (var consume : consumeBuilder){
+                if (consume instanceof ConsumeItems consumeItems){
+                    for (var stack : consumeItems.items){
+                        if (stack.item == item && items.get(item) < stack.amount) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         public void updateEfficiency(){
             boolean hasItemConsumer = false;
             boolean allItemsPresent = true;
@@ -86,8 +101,7 @@ public class CausticSpawner extends NeoplasmBlock {
 
         private void spawnUnit(){
             if (Vars.net.client() || spawn == null || !isGrown()
-                || efficiency <= 0f || !Units.canCreate(team, spawn)
-                || !NeoplasmPopulation.canSpawn(team, spawn)) return;
+                || efficiency <= 0f || !NeoplasmPopulation.canSpawn(team, spawn)) return;
 
             var unit = spawn.create(team);
             if (unit == null) return;

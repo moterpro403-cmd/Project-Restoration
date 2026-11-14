@@ -10,13 +10,13 @@ import mindustry.content.UnitTypes;
  * Counts only its own roster, leaving other teams' unit budgets untouched.
  */
 public final class NeoplasmPopulation {
-    public static final int maxTotal = 32;
-    public static final int maxBlobs = 8;
-    public static final int maxSiegeCrawlers = 3;
-    public static final int maxSporeCarriers = 2;
-    public static final int maxPolyctenids = 2;
-    public static final int maxScolopendras = 5;
-    public static final int maxMycelids = 3;
+    public static final int maxTotal = 64;
+    public static final int maxBlobs = 12;
+    public static final int maxSiegeCrawlers = 4;
+    public static final int maxSporeCarriers = 4;
+    public static final int maxPolyctenids = 3;
+    public static final int maxScolopendras = 8;
+    public static final int maxMycelids = 5;
 
     private NeoplasmPopulation(){}
 

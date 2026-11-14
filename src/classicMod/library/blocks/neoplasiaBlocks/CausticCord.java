@@ -479,25 +479,49 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void updateAfterBeat() {
-            if (current != null){
-                Seq<NeoplasmBuilding> avaliable = new Seq<>();
+            Item item = items.first();
+            if (item == null){
+                current = null;
+                return;
+            }
+
+            Seq<NeoplasmBuilding> spawnerDestinations = new Seq<>();
+            Seq<NeoplasmBuilding> otherDestinations = new Seq<>();
+
+            // "nearby()" measures from a block center and misses the edge of
+            // 3x3/4x4 spawners. "proximity" is based on actual footprint contact.
+            for (Building nearby : proximity){
+                NeoplasmBuilding dest = getNeoplasm(nearby);
+                if (dest == null || dest == this || !validBuilding(dest, item)) continue;
+                if (dest.block instanceof CausticSpawner){
+                    if (!spawnerDestinations.contains(dest, true)) spawnerDestinations.add(dest);
+                }else if (!otherDestinations.contains(dest, true)){
+                    otherDestinations.add(dest);
+                }
+            }
+
+            // Fallback for the first update after a building is placed.
+            if (spawnerDestinations.isEmpty() && otherDestinations.isEmpty()){
                 for (int i = 0; i < 4; i++){
                     NeoplasmBuilding dest = getNeoplasm(nearby(Mathf.mod(facingRot + i, 4)));
-                    //NeoplasmBuilding dest = getNeoplasm(nearby(facingRot + i));
-                    Item item = items.first();
-                    if (validBuilding(dest, item)) avaliable.add(dest);
-                }
-                if (avaliable.size > 0) {
-                    int selected = Mathf.clamp(Mathf.random(0, avaliable.size), 0, avaliable.size - 1);
-                    Item item = items.first();
-                    Building dest = avaliable.get(selected);
-                    if (item != null && validBuilding(dest, item)) {
-                        current = null;
-                        items.clear();
-                        dest.handleItem(this, item);
+                    if (validBuilding(dest, item) && !otherDestinations.contains(dest, true)){
+                        otherDestinations.add(dest);
                     }
                 }
             }
+
+            // Feed adjacent spawner recipes before passing ingredients further along.
+            Seq<NeoplasmBuilding> destinations = spawnerDestinations.isEmpty()
+                    ? otherDestinations : spawnerDestinations;
+            if (destinations.isEmpty()) return;
+
+            NeoplasmBuilding destination = destinations.get(Mathf.random(destinations.size - 1));
+            if (!validBuilding(destination, item)) return;
+
+            current = null;
+            items.remove(item, 1);
+            destination.handleItem(this, item);
+            if (items.any()) current = items.first();
         }
 
         public void coverQueue(Block cordPlacement){
