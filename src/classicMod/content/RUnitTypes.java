@@ -603,7 +603,10 @@ public class RUnitTypes {
         // Heavy six-legged artillery organism.
         polyctenid = new UnitType("polyctenid"){{
             constructor = LegsUnit::create;
-            controller = u -> new NeoplasmGroundAI();
+            controller = u -> new NeoplasmArtilleryAI();
+            playerControllable = false;
+            targetAir = false;
+            targetGround = true;
             flowfieldPathType = PathfinderCustom.costLegs;
             health = 3400f;
             armor = 10f;
@@ -660,6 +663,9 @@ public class RUnitTypes {
         scolopendra = new UnitType("scolopendra"){{
             constructor = CrawlUnit::create;
             controller = u -> new NeoplasmFlankerAI();
+            playerControllable = false;
+            targetAir = false;
+            targetGround = true;
             flowfieldPathType = PathfinderCustom.costGround;
             health = 620f; armor = 3f; hitSize = 13f;
             speed = 1.18f; rotateSpeed = 4.2f; range = 92f;
@@ -692,6 +698,7 @@ public class RUnitTypes {
         mycelid = new UnitType("mycelid"){{
             constructor = UnitEntity::create;
             controller = u -> new NeoplasmSymbiontAI();
+            playerControllable = false;
             flowfieldPathType = PathfinderCustom.costNone;
             flying = true; lowAltitude = true; hovering = true;
             engineSize = 0f; health = 780f; armor = 4f; hitSize = 15f;
