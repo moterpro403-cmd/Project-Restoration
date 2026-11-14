@@ -628,7 +628,7 @@ public class RUnitTypes {
                 x = 0f; y = 8f; mirror = false; rotate = true;
                 rotateSpeed = 2.4f; reload = 3.5f; recoil = 0.6f;
                 inaccuracy = 4.5f; velocityRnd = 0.14f;
-                shootSound = Sounds.spray;
+                shootSound = pew;
                 bullet = new LiquidBulletType(Liquids.neoplasm){{
                     speed = 5.4f; lifetime = 40f; damage = 14f;
                     puddleSize = 9f; orbSize = 4.2f; drag = 0.008f;
@@ -640,7 +640,7 @@ public class RUnitTypes {
             weapons.add(new Weapon(){{
                 x = 0f; y = -4f; mirror = false; rotate = true;
                 rotateSpeed = 1.6f; reload = 140f; inaccuracy = 6f;
-                shootSound = Sounds.artillery;
+                shootSound = RSounds.artillery;
                 bullet = new ArtilleryBulletType(3.6f, 38f){{
                     width = 11f; height = 11f; lifetime = 60f;
                     splashDamage = 48f; splashDamageRadius = 26f;
@@ -675,7 +675,7 @@ public class RUnitTypes {
                     shots = 2;
                     shotDelay = 4f;
                 }};
-                shootSound = Sounds.mud;
+                shootSound = RSounds.splat;
                 bullet = new BasicBulletType(4.6f, 24f){{
                     width = 7f; height = 9f; lifetime = 21f;
                     buildingDamageMultiplier = 1.45f;
@@ -701,7 +701,7 @@ public class RUnitTypes {
             healColor = Pal.neoplasm1;
             weapons.add(new Weapon(internalMod + "-mycelid-lash"){{
                 x = 0f; y = 5f; mirror = false; rotate = true;
-                rotateSpeed = 4.5f; reload = 38f; shootSound = Sounds.sap;
+                rotateSpeed = 4.5f; reload = 38f; shootSound = pew;
                 bullet = new BasicBulletType(4.2f, 26f){{
                     width = 8f; height = 10f; lifetime = 35f;
                     buildingDamageMultiplier = 1.6f;
