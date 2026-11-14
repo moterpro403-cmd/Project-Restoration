@@ -30,15 +30,15 @@ import java.util.HashMap;
  */
 public final class NeoplasmStrategicPathfinder {
     /** Full route maps rebuild at most once every 10 simulation seconds. */
-    private static final float refreshTicks = 600f;
-    /** Changed death heat triggers an earlier rebuild, throttled to 1.5 simulation seconds. */
-    private static final float heatRevisionRefreshTicks = 90f;
-    private static final float trafficRefreshTicks = 120f;
+    private static final float refreshTicks = 360f;
+    /** Hit and death events refresh the route after a short throttle. */
+    private static final float heatRevisionRefreshTicks = 75f;
+    private static final float trafficRefreshTicks = 90f;
 
     /** Weight per point of decayed death heat (strong enough to force wide detours). */
-    private static final float deathRiskWeight = 1.65f;
+    private static final float deathRiskWeight = 0.82f;
     /** Weight per point of turret / fortification threat. */
-    private static final float turretRiskWeight = 1.0f;
+    private static final float turretRiskWeight = 0.95f;
     /** Base danger contributed by an active enemy turret at its center. */
     private static final float baseTurretPower = 85f;
     /** Maximum single-tile fortification hazard cap (allows multi-turret killzones to weigh heavily). */

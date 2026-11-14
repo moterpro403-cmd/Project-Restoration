@@ -40,6 +40,7 @@ public final class NeoplasmPerfMonitor {
     private static int cordScans;
     private static int cordRepairs;
     private static int deathEvents;
+    private static int damageEvents;
     private static int suppressedDeathEvents;
 
     private NeoplasmPerfMonitor(){
@@ -72,6 +73,7 @@ public final class NeoplasmPerfMonitor {
     public static void cordScan(){ if(enabled) cordScans++; }
     public static void cordRepair(){ if(enabled) cordRepairs++; }
     public static void deathRecorded(){ if(enabled) deathEvents++; }
+    public static void damageRecorded(){ if(enabled) damageEvents++; }
     public static void deathSuppressed(){ if(enabled) suppressedDeathEvents++; }
 
     private static String timeMs(int timer){
@@ -142,7 +144,7 @@ public final class NeoplasmPerfMonitor {
             + ", dijkstra=" + routeBuilds + ", turretScan=" + turretScans
             + ", trafficScan=" + trafficScans + ", cordScan=" + cordScans
             + ", cordRepair=" + cordRepairs + ", deaths=" + deathEvents
-            + ", deathSuppressed=" + suppressedDeathEvents + "]"
+            + ", hitMemories=" + damageEvents + ", deathSuppressed=" + suppressedDeathEvents + "]"
             + " ms[path=" + timeMs(TIMER_PATH) + "/" + timerCalls[TIMER_PATH]
             + ", steer=" + timeMs(TIMER_STEERING) + "/" + timerCalls[TIMER_STEERING]
             + ", heat=" + timeMs(TIMER_HEAT) + "/" + timerCalls[TIMER_HEAT]
@@ -165,6 +167,7 @@ public final class NeoplasmPerfMonitor {
         cordScans = 0;
         cordRepairs = 0;
         deathEvents = 0;
+        damageEvents = 0;
         suppressedDeathEvents = 0;
         for(int i = 0; i < timerNanos.length; i++){
             timerNanos[i] = 0L;

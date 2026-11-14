@@ -1,3 +1,4 @@
 Build trigger for the V9 Neoplasm sprite integration.
 Spawner sprite filename fix: cb1ea94.
 Unique spawner art and autonomous production fixes - 2026-11-14
+Combat-memory heatmap rewrite + route refresh tuning - 2026-11-14
