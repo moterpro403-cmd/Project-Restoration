@@ -1,6 +1,7 @@
 package classicMod.library.ai;
 
 import arc.math.Mathf;
+import arc.struct.Seq;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
 import arc.util.Time;
@@ -60,14 +61,18 @@ public class NeoplasmSymbiontAI extends NeoplasmFlyingAI {
     }
 
     private void pulseTissueGraft() {
-        graftedCount = 0;
+        // Heal the three most damaged nearby Neoplasm allies first.
+        Seq<Unit> allies = new Seq<>();
         Units.nearby(unit.team, unit.x, unit.y, graftRadius, ally -> {
-            if (graftedCount < 3 && ally != unit && ally.isValid()
-                    && NeoplasmDeathHeatmap.isNeoplasm(ally)) {
-                ally.apply(StatusEffects.shielded, 180f);
-                graftedCount++;
+            if (ally != unit && ally.isValid() && NeoplasmDeathHeatmap.isNeoplasm(ally)) {
+                allies.add(ally);
             }
         });
+        allies.sort(ally -> ally.healthf());
+        graftedCount = Math.min(3, allies.size);
+        for (int i = 0; i < graftedCount; i++) {
+            allies.get(i).apply(StatusEffects.shielded, 180f);
+        }
     }
 
     /** Extends a connected artery by one safe tile, at most once per six seconds per unit. */
