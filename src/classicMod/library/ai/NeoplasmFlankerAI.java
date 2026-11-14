@@ -14,6 +14,10 @@ import mindustry.world.meta.BlockFlag;
 import static mindustry.Vars.state;
 
 public class NeoplasmFlankerAI extends NeoplasmGroundAI {
+    public NeoplasmFlankerAI() {
+        deathMemory.dangerSensitivity = 0.72f;
+    }
+
     private static final Rand rand = new Rand();
     private static final BlockFlag[] flankPriorities = {
             BlockFlag.generator, BlockFlag.battery, BlockFlag.drill,
