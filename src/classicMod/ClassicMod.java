@@ -441,6 +441,7 @@ public class ClassicMod extends Mod {
     @Override
     public void loadContent() {
         registerConstructors();
+        NeoplasmAIController.init();
         NeoplasmCordNetwork.init();
         NeoplasmPerfMonitor.init();
 
