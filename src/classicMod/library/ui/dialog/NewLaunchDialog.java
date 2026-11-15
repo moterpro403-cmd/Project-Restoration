@@ -13,6 +13,7 @@ import arc.scene.ui.*;
 import arc.scene.ui.layout.Table;
 import arc.util.*;
 import mindustry.Vars;
+import classicMod.content.RSounds;
 import mindustry.content.Planets;
 import mindustry.core.GameState;
 import mindustry.ctype.ContentType;
@@ -58,7 +59,7 @@ public class NewLaunchDialog extends Dialog {
                 Vars.state.set(GameState.State.playing);
             }
 
-            Sounds.back.play();
+            RSounds.back.play();
         });
         this.shown(() -> {
             if (this.shouldPause && Vars.state.isGame() && !Vars.net.active()) {
