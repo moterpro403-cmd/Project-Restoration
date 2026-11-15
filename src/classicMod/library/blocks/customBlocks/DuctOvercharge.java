@@ -84,7 +84,7 @@ public class DuctOvercharge extends Duct {
             Draw.rect(sliced(botRegions[bits], slice), x, y, rotation);
 
             Draw.z(Layer.blockUnder + 0.2f);
-            Draw.color(transparentColor);
+            Draw.color(Color.clear);
             Draw.rect(sliced(botRegions[bits], slice), x, y, rotation);
             Draw.color();
             Draw.rect(sliced(topRegions[bits], slice), x, y, rotation);
