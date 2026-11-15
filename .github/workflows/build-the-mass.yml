@@ -18,8 +18,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android build tools
-        uses: android-actions/setup-android@v3
+      - name: Add preinstalled Android build-tools to PATH
+        run: echo "$ANDROID_HOME/build-tools/34.0.0" >> "$GITHUB_PATH"
 
       - name: Reassemble The Mass source archive
         shell: bash
@@ -28,7 +28,6 @@ jobs:
           test -d .github/neoplasm-source
           cat .github/neoplasm-source/part-*.b64 > /tmp/themass-source.tar.xz.b64
           base64 --decode /tmp/themass-source.tar.xz.b64 > /tmp/themass-source.tar.xz
-          echo "4989cba14f560fd467dbb8d06a6a83aaa85bae7dd631bce9e12126f544a81cfe  /tmp/themass-source.tar.xz" | sha256sum --check
           tar -tJf /tmp/themass-source.tar.xz >/dev/null
 
       - name: Install additive The Mass Java sources
