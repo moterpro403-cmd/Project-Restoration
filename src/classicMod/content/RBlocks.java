@@ -446,7 +446,7 @@ public class RBlocks {
         }};
 
         //Projectors
-        barrierProjector = new DirectionalForceProjector("barrier-projector"){{
+        barrierProjector = new DirectionalForceProjectorLegacy("barrier-projector"){{
             requirements(Category.effect, with(Items.tungsten, 100, Items.silicon, 125));
             size = 3;
             width = 50f;
