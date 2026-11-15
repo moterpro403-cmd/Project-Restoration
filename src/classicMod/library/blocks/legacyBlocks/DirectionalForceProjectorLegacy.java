@@ -6,7 +6,7 @@ import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
 import arc.util.*;
-import mindustry.annotations.Annotations.*;
+
 import mindustry.content.*;
 import mindustry.entities.*;
 import mindustry.gen.*;
@@ -50,7 +50,7 @@ public class DirectionalForceProjectorLegacy extends Block{
 
     public Effect absorbEffect = Fx.absorb;
     public Effect shieldBreakEffect = Fx.shieldBreak;
-    public @Load("@-top") TextureRegion topRegion;
+    public public TextureRegion topRegion;
 
     public float length = 40f;
     public float padSize = 40f;
@@ -67,6 +67,12 @@ public class DirectionalForceProjectorLegacy extends Block{
         envEnabled |= Env.space;
         ambientSound = Sounds.loopShield;
         ambientSoundVolume = 0.08f;
+    }
+
+    @Override
+    public void load(){
+        super.load();
+        topRegion = Core.atlas.find(name + "-top");
     }
 
     @Override
