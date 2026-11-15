@@ -176,25 +176,22 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             }
 
 
-            // TODO better cordAI
+            // Keep new tendrils in open space. Existing neoplasm is traversable for
+            // pathfinding, but it must not be treated as empty growth space.
             task = (task != 0) ? task : PathfinderCustom.fieldVent;
             Tile next = pathfind(task);
 
-
-            if (
-                    passable(next, true)
-            ) {
+            if (openForCordGrowth(next)) {
                 int rot = this.tile.relativeTo(next);
                 Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
                 Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                if (
-                        passable(nearRight, false)
-                        && passable(nearLeft, false)
-                ) {
-                    if (!CantReplace(next.block())) next.setBlock(RBlocks.cord, team);
-                    if (next.build != null && next.build instanceof CordBuild cordBuild) {
-                        cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
-                                Mathf.randomBoolean() ? PathfinderCustom.fieldOres : Mathf.randomBoolean() ? PathfinderCustom.fieldCore : PathfinderExtended.fieldVent;
+
+                // Leave a clear lane beside the new segment instead of filling gaps
+                // alongside existing cord and other neoplasm structures.
+                if (openForCordGrowth(nearRight) && openForCordGrowth(nearLeft)) {
+                    next.setBlock(RBlocks.cord, team);
+                    if (next.build instanceof CordBuild cordBuild) {
+                        cordBuild.task = chooseBranchTask(task);
                         cordBuild.facingRot = rot;
                         cordBuild.prev = this;
                     }
@@ -204,16 +201,68 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             super.growCord(block);
         }
 
-        public Tile pathfind(int pathTarget) {
-            int costType = Pathfinder.costGround;
-            Tile tile = this.tile;
-            if (tile != null) {
-                Tile targetTile = RVars.pathfinderCustom.getTargetTileD4(tile, RVars.pathfinderCustom.getField(team, costType, pathTarget));
-                if (tile != targetTile) {
-                    return targetTile;
+        private boolean openForCordGrowth(Tile target) {
+            return target != null
+                    && passable(target, true)
+                    && !(target.block() instanceof NeoplasmBlock);
+        }
+
+        private int nearbyNeoplasmCount(Tile center) {
+            int count = 0;
+            for (Point2 point : Geometry.d8) {
+                Tile near = Vars.world.tile(center.x + point.x, center.y + point.y);
+                if (near != null && near.build instanceof NeoplasmBuilding && near.build != this) {
+                    count++;
                 }
             }
-            return null;
+            return count;
+        }
+
+        private int chooseBranchTask(int parentTask) {
+            int roll = Mathf.random(99);
+            if (roll < 60) return parentTask;
+            if (roll < 80) return PathfinderCustom.fieldOres;
+            if (roll < 95) return PathfinderCustom.fieldVent;
+            return PathfinderCustom.fieldCore;
+        }
+
+        public Tile pathfind(int pathTarget) {
+            int costType = Pathfinder.costGround;
+            Tile origin = this.tile;
+            if (origin == null) return null;
+
+            PathfinderCustom.Flowfield field = RVars.pathfinderCustom.getField(team, costType, pathTarget);
+            if (field.weights == null) return null;
+
+            int[] values = field.hasCompleteWeights() ? field.completeWeights : field.weights;
+            int currentWeight = values[origin.array()];
+            if (currentWeight < 0) return null;
+
+            Tile best = null;
+            float bestScore = Float.MAX_VALUE;
+
+            // Consider every downhill direction, not just the single lowest-cost one.
+            // A local crowd penalty lets separate fronts choose less congested routes.
+            for (Point2 point : Geometry.d4) {
+                Tile candidate = Vars.world.tile(origin.x + point.x, origin.y + point.y);
+                if (!openForCordGrowth(candidate)) continue;
+
+                int candidateWeight = values[candidate.array()];
+                if (candidateWeight < 0 || candidateWeight >= currentWeight) continue;
+
+                int rotation = origin.relativeTo(candidate);
+                Tile sideA = candidate.nearby(Mathf.mod(rotation + 1, 4));
+                Tile sideB = candidate.nearby(Mathf.mod(rotation - 1, 4));
+                if (!openForCordGrowth(sideA) || !openForCordGrowth(sideB)) continue;
+
+                float score = candidateWeight + nearbyNeoplasmCount(candidate) * 8f + Mathf.random(0f, 0.5f);
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+
+            return best;
         }
 
         @Override
