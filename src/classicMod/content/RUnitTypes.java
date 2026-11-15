@@ -24,7 +24,7 @@ import mindustry.type.weapons.BuildWeapon;
 
 import static arc.struct.SnapshotSeq.with;
 import static classicMod.ClassicMod.internalMod;
-import static classicMod.content.RSounds.pew;
+import static classicMod.content.RRSounds.pewc;
 import static classicMod.content.RVars.empty;
 import static mindustry.Vars.tilePayload;
 
@@ -90,7 +90,7 @@ public class RUnitTypes {
                     rotateSpeed = 1.0F;
                     rotationLimit = 70f;
                     ejectEffect = Fx.none;
-                    shootSound = Sounds.lasershoot;
+                    shootSound = RRSounds.lasershoot;
                     inaccuracy = 10f;
                     mirror = top = false;
                     rotate = true;
@@ -208,7 +208,7 @@ public class RUnitTypes {
                 x = y = 0;
                 reload = 60f;
                 ejectEffect = Fx.none;
-                shootSound = Sounds.pew;
+                shootSound = RSounds.pewc;
                 inaccuracy = 10f;
 
                 shoot = new ShootPattern(){{
@@ -737,7 +737,7 @@ public class RUnitTypes {
                 shoot.shots = 2;
                 inaccuracy = 0f;
                 ejectEffect = Fx.none;
-                shootSound = Sounds.spark;
+                shootSound = RSounds.spark;
                 shootX = -2.6f;
                 mirror = true;
                 bullet = new LightningBulletType() {{ //reformat v5 coding into v7
@@ -824,7 +824,7 @@ public class RUnitTypes {
                 x = 4;
                 reload = 4;
                 ejectEffect = Fx.none;
-                shootSound = Sounds.spark;
+                shootSound = RSounds.spark;
                 bullet = new LightningBulletType(){{
                     damage = 4f;
                     lightningLength = 15;
@@ -866,7 +866,7 @@ public class RUnitTypes {
                 ejectEffect = Fx.none;
                 shake = 3f;
                 shootX = -6f;
-                shootSound = Sounds.shootBig;
+                shootSound = RSounds.shootBig;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12) {{ //adjust the format of v5 for v7
@@ -952,7 +952,7 @@ public class RUnitTypes {
                 mirror = true;
                 reload = 12f;
 
-                shootSound = Sounds.shootSnap;
+                shootSound = RSounds.shootSnap;
                 ejectEffect = RFx.shellEjectSmall;
 
                 bullet = RBullets.standardGlaive;
@@ -1000,7 +1000,7 @@ public class RUnitTypes {
                     hitEffect = Fx.flakExplosion;
                     shootEffect = Fx.none;
                     smokeEffect = Fx.none;
-                    shootSound = Sounds.artillery;
+                    shootSound = RSounds.artillery;
                 }};
             }});
         }};
@@ -1029,7 +1029,7 @@ public class RUnitTypes {
                 inaccuracy = 2f;
                 alternate = true;
                 ejectEffect = RFx.shellEjectSmall;
-                shootSound = Sounds.shootSnap;
+                shootSound = RSounds.shootSnap;
                 mirror = true;
                 showStatSprite = false;
 
@@ -1063,7 +1063,7 @@ public class RUnitTypes {
                 alternate = true;
                 ejectEffect = Fx.none;
                 velocityRnd = 0.2f;
-                shootSound = Sounds.missile;
+                shootSound = RSounds.missile;
                 mirror = true;
 
                 bullet = RBullets.missileJavelin;
@@ -1127,7 +1127,7 @@ public class RUnitTypes {
                 alternate = true;
                 reload = 10;
                 ejectEffect = Fx.none;
-                shootSound = Sounds.spark;
+                shootSound = RSounds.spark;
                 bullet = new LightningBulletType(){{
                     damage = 8f;
                     lightningLength = 15;
@@ -1202,7 +1202,7 @@ public class RUnitTypes {
                 shootCone = 40f;
                 rotate = true;
                 rotateSpeed = 0.06f * 12f;
-                shootSound = Sounds.missile;
+                shootSound = RSounds.missile;
                 mirror = true;
                 inaccuracy = 2f;
                 alternate = true;
@@ -1246,7 +1246,7 @@ public class RUnitTypes {
                 velocityRnd = 0.2f;
                 rotateSpeed = 0.06f * 12f;
                 rotate = true;
-                shootSound = Sounds.artillery;
+                shootSound = RSounds.artillery;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12f) {{ //adjust the format of v5 for v7
@@ -1298,7 +1298,7 @@ public class RUnitTypes {
                 shake = 1f;
                 inaccuracy = 3f;
                 rotate = true;
-                shootSound = Sounds.shootBig;
+                shootSound = RSounds.shootBig;
                 mirror = true;
 
                 bullet = new BasicBulletType(7f, 42f) {{ //adjust the format of v5 for v7
@@ -1533,7 +1533,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-flamethrower-equip") {{
-                shootSound = Sounds.flame;
+                shootSound = RSounds.flame;
                 outlines = false;
                 x = -4f;
                 y = 0f;
@@ -1579,7 +1579,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-artillery-equip") {{
-                shootSound = Sounds.artillery;
+                shootSound = RSounds.artillery;
                 outlines = false;
                 x = -10f;
                 y = 0f;
@@ -1625,7 +1625,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-eruption-equip") {{
-                shootSound = Sounds.flame;
+                shootSound = RSounds.flame;
                 outlines = false;
                 x = -7f;
                 y = 0f;
@@ -1661,7 +1661,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-chaos-equip") {{
-                shootSound = Sounds.shootBig;
+                shootSound = RSounds.shootBig;
                 outlines = false;
                 x = -17f;
                 y = 0f;
@@ -1703,7 +1703,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-eradication-equip") {{
-                shootSound = Sounds.shootBig;
+                shootSound = RSounds.shootBig;
                 outlines = false;
                 x = -21.5f;
                 y = 0f;
@@ -1784,7 +1784,7 @@ public class RUnitTypes {
                 x = 0.75f;
                 reload = 50f;
                 recoil = 4f;
-                shootSound = Sounds.laser;
+                shootSound = RSounds.laser;
                 bullet = new LaserBulletType() {{
                     damage = 20f;
                     recoil = 1f;
@@ -1869,7 +1869,7 @@ public class RUnitTypes {
             treadRects = new Rect[]{new Rect(22f - 154f/2f, 16f - 154f/2, 28f, 130f)};
 
             weapons.add(new Weapon(internalMod + "-howit-weapon"){{
-                shootSound = Sounds.bolt;
+                shootSound = RSounds.bolt;
                 layerOffset = 0.0001f;
                 reload = 120f;
                 shootY = 7f;
@@ -1962,7 +1962,7 @@ public class RUnitTypes {
 
             //TODO maybe different shoot
             weapons.add(new Weapon(internalMod + "-mantel-weapon"){{
-                shootSound = Sounds.largeCannon;
+                shootSound = RSounds.largeCannon;
                 layerOffset = 0.0001f;
                 reload = 120f;
                 shootY = (71f / 4f) - 2f;
