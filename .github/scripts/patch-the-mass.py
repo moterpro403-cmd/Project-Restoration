@@ -44,14 +44,19 @@ replace('abilities/CarrierBlobDropAbility.java',
         'mindustry.entities.Groups.unit',
         'mindustry.gen.Groups.unit')
 
-# The host mod already owns the Mod lifecycle. Use one internal instance to
-# invoke this feature package's lifecycle without registering a second mod.
-replace('NeoplasmMod.java',
-        '    private float pathTimer;\n',
-        '    private float pathTimer;\n\n'
-        '    private static final NeoplasmMod host = new NeoplasmMod();\n'
-        '    public static void loadContentFromHost() { host.loadContent(); }\n'
-        '    public static void initFromHost() { host.init(); }\n')
+# Insert host lifecycle bridges at the loadContent method anchor; this remains
+# stable even if the source archive changes its private timer declaration.
+mod_file = ROOT / 'NeoplasmMod.java'
+mod_text = mod_file.read_text(encoding='utf-8')
+bridge = ('    private static final NeoplasmMod host = new NeoplasmMod();\\n'
+          '    public static void loadContentFromHost() { host.loadContent(); }\\n'
+          '    public static void initFromHost() { host.init(); }\\n\\n')
+if 'public static void loadContentFromHost()' not in mod_text:
+    anchor = '    @Override\\n    public void loadContent() {'
+    if anchor not in mod_text:
+        raise SystemExit('NeoplasmMod loadContent anchor missing.')
+    mod_text = mod_text.replace(anchor, bridge + anchor, 1)
+mod_file.write_text(mod_text, encoding='utf-8')
 
 # Read values from the existing Restoration settings menu.
 old_options = '''    private void readOptions() {
