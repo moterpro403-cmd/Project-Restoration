@@ -2,3 +2,4 @@ Faithful v14 source port for Mindustry 160.7. Gameplay and assets remain from of
 Compatibility pass 2.
 Compatibility pass 3.
 Compatibility pass 4.
+Android optimization pass.
