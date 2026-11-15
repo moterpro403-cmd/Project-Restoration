@@ -1,0 +1,1 @@
+This branch preserves the official Project: Restoration v14 source at commit 8b970c2cd319765c2cd92a2f9917d016ed8c325b. Only build.gradle and assets/mod.hjson were adjusted for a Mindustry 160.7 Android build. No gameplay/source/assets changes were made.
