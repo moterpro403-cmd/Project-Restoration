@@ -1,10 +1,10 @@
 package classicMod.library.ui.dialog;
 
-import arc.graphics.Texture;
 import arc.graphics.g2d.TextureRegion;
 import arc.scene.ui.*;
 import arc.scene.ui.layout.Table;
 import classicMod.ClassicMod;
+import arc.graphics.g2d.TextureRegion;
 import mindustry.Vars;
 import mindustry.gen.Icon;
 import mindustry.ui.Styles;
@@ -24,13 +24,14 @@ public class StaticImageManager extends BaseDialog {
         AtomicInteger i = new AtomicInteger();
         ImageManger.clearChildren();
         dataDirectory.child("prjRes-background").walk(fi -> {
-            Texture image = new Texture(fi);
+            TextureRegion preview = ClassicMod.staticImageBackground.imageData.get(fi.nameWithoutExtension());
+            if(preview == null) return;
 
             i.getAndIncrement();
             ImageManger.table(Styles.grayPanel, imData -> {
                 imData.table(imTable -> {
-                    imTable.image(new TextureRegion(image)).size(128f);
-                }).pad(10f);
+                    imTable.image(preview).size(Vars.mobile ? 88f : 128f);
+                }).pad(Vars.mobile ? 5f : 10f);
                 imData.table(imButton -> {
                     imButton.add(fi.name()).pad(5f).row();
                     imButton.button("@delete", Icon.trash, () -> {
@@ -39,10 +40,10 @@ public class StaticImageManager extends BaseDialog {
                             rebuildManager();
                             ClassicMod.rebuildStaticImage(ClassicMod.staticImageBackground);
                         });
-                    }).size(210f, 64f);
+                    }).size(Vars.mobile ? 145f : 210f, Vars.mobile ? 54f : 64f);
                 });
             });
-            if (i.get() >= 2) {
+            if (Vars.mobile || i.get() >= 2) {
                 ImageManger.row();
                 i.set(0);
             }
