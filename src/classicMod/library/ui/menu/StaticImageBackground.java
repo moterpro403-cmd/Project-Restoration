@@ -1,49 +1,46 @@
 package classicMod.library.ui.menu;
 
-import arc.Core;
-import arc.graphics.Color;
-import arc.graphics.g2d.*;
-import arc.graphics.gl.FrameBuffer;
-import arc.math.geom.Vec3;
-import arc.scene.ui.Image;
+import arc.graphics.Texture;
+import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.TextureRegion;
 import arc.struct.*;
-import arc.util.Timer;
-
 import static arc.Core.*;
-import static classicMod.library.ui.UIExtended.fdelta;
 import static mindustry.Vars.*;
 
+/**
+ * Static menu image background.
+ *
+ * Android note: draw the source texture directly. The previous implementation
+ * copied the full screen through a square FrameBuffer every frame, which
+ * allocated a large extra GPU texture and added an unnecessary render pass.
+ */
 public class StaticImageBackground extends MenuBackground {
-
-    public static FrameBuffer menuBuffer;
-    public TextureRegion frame = new TextureRegion();
-    public Image menuBG = new Image(frame);
     public ObjectMap<String, TextureRegion> imageData = new ObjectMap<>();
     public Seq<String> image = new Seq<>();
 
-    @Override
-    public void render() {
-        int size = Math.max(graphics.getWidth(), graphics.getHeight());
+    // Textures loaded from user-provided image files. Atlas regions are not owned here.
+    public Seq<Texture> ownedTextures = new Seq<>();
 
-        if (menuBuffer == null) {
-            menuBuffer = new FrameBuffer(size, size);
+    public void disposeImages(){
+        for(Texture texture : ownedTextures){
+            if(texture != null){
+                texture.dispose();
+            }
         }
+        ownedTextures.clear();
+    }
 
-        menuBuffer.begin(Color.clear);
+    @Override
+    public void render(){
+        if(image.isEmpty()) return;
 
-        menuBG.setFillParent(true);
+        int selected = Math.max(0, Math.min(settings.getInt("staticimage"), image.size - 1));
+        TextureRegion region = imageData.get(image.get(selected));
+        if(region == null) return;
 
-        int select = (settings.getInt("staticimage") >= image.size) ? settings.getInt("staticimage") - 1 : settings.getInt("staticimage");
-        frame.set(imageData.get(image.get(select)));
-        menuBG.getRegion().set(frame);
-
-        Draw.flush();
-
-        Draw.rect(frame, (float) graphics.getWidth() / 2, (float) graphics.getHeight() / 2, graphics.getWidth(), graphics.getHeight());
-
-        menuBuffer.end();
-        TextureRegion buffer = Draw.wrap(menuBuffer.getTexture());
-        buffer.flip(false, true);
-        Draw.rect(buffer, (float) graphics.getWidth() / 2, (float) graphics.getHeight() / 2, graphics.getWidth(), graphics.getHeight());
+        Draw.color();
+        Draw.rect(region, graphics.getWidth() / 2f, graphics.getHeight() / 2f,
+            graphics.getWidth(), graphics.getHeight());
+        Draw.color();
     }
 }
