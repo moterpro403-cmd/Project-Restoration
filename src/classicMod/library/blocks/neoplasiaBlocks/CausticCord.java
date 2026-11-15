@@ -241,10 +241,10 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 //if (!prev.ignorePath.contains(facingRot)) prev.ignorePath.add(facingRot);
             }
 
+            // nearbySide already returns the adjacent tile for every direction.
+            // Do not add another offset: that skipped one tile when facing east or north.
             this.block.nearbySide(tile.x, tile.y, Mathf.mod(facingRot, 4), 0, Tmp.p1);
-            int dx = (Geometry.d4x(facingRot) > 0) ? 1 : 0;
-            int dy = (Geometry.d4y(facingRot) > 0) ? 1 : 0;
-            Tile other = Vars.world.tile(Tmp.p1.x + dx, Tmp.p1.y + dy);
+            Tile other = Vars.world.tile(Tmp.p1.x, Tmp.p1.y);
             if (other != null && other.solid()) {
                 int spaces = calculateSpaces(drill.size, other.x, other.y);
                 Item drop = other.wallDrop();
