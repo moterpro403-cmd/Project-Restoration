@@ -35,7 +35,7 @@ public class MechPad extends Block {
         update = true;
         solid = false;
         hasPower = true;
-        ambientSound = Sounds.respawning;
+        ambientSound = RSounds.respawning;
         finishedSounds = RSounds.respawn;
     }
 
