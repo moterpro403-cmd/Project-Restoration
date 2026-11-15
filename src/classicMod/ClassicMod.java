@@ -26,6 +26,7 @@ import mindustry.mod.Mod;
 import mindustry.mod.Mods.LoadedMod;
 import mindustry.type.*;
 import mindustry.ui.Styles;
+import mindustry.ui.FileChooser;
 import mindustry.ui.dialogs.*;
 import mindustry.ui.fragments.MenuFragment;
 
@@ -316,40 +317,30 @@ public class ClassicMod extends Mod{
                 //staticSelection.
                 t.pref(new UIExtended.ButtonSetting("staticimage-manager", Icon.book, () -> UIExtended.staticImageManager.show()));
                 t.pref(new UIExtended.ButtonSetting("staticimage-upload", Icon.upload, () -> {
-                    Vars.platform.showMultiFileChooser((file) -> {
-                        try {
-                            var dest = dataDirectory + "/prjRes-background";
-                            if (isValidExtension(new Seq<>(new String[]{
-                                "jpg",
-                                    "png",
-                                    "jpeg"
-                            }), file)) {
-                                Fi newDir = new Fi(dest + "/" + file.name());
-                                if (file.isDirectory()) {
-                                    newDir.mkdirs();
+                    FileChooser.open("jpg", "png", "jpeg").submitMulti(files -> {
+                        for (Fi file : files) {
+                            try {
+                                var dest = dataDirectory + "/prjRes-background";
+                                if (isValidExtension(new Seq<>(new String[]{"jpg", "png", "jpeg"}), file)) {
+                                    Fi newDir = new Fi(dest + "/" + file.name());
+                                    if (file.isDirectory()) newDir.mkdirs();
+                                    else file.copyTo(newDir);
+                                    rebuildStaticImage(staticImageBackground);
                                 } else {
-                                    file.copyTo(newDir);
+                                    Vars.ui.showErrorMessage("@data.invalid-image");
                                 }
-                                rebuildStaticImage(staticImageBackground);
-                            } else {
+                            } catch (IllegalArgumentException var3) {
                                 Vars.ui.showErrorMessage("@data.invalid-image");
-                            }
-                        } catch (IllegalArgumentException var3) {
-                            Vars.ui.showErrorMessage("@data.invalid-image");
-                        } catch (Exception var4) {
-                            var4.printStackTrace();
-                            if (var4.getMessage() != null && var4.getMessage().contains("too short")) {
-                                Vars.ui.showErrorMessage("@data.invalid-image");
-                            } else {
-                                Vars.ui.showException(var4);
+                            } catch (Exception var4) {
+                                var4.printStackTrace();
+                                if (var4.getMessage() != null && var4.getMessage().contains("too short")) {
+                                    Vars.ui.showErrorMessage("@data.invalid-image");
+                                } else {
+                                    Vars.ui.showException(var4);
+                                }
                             }
                         }
-
-                    },
-                            "jpg",
-                            "png",
-                            "jpeg"
-                    );
+                    });
                 })
             );
             } else {
