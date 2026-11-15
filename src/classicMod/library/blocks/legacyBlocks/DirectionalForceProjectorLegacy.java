@@ -50,7 +50,7 @@ public class DirectionalForceProjectorLegacy extends Block{
 
     public Effect absorbEffect = Fx.absorb;
     public Effect shieldBreakEffect = Fx.shieldBreak;
-    public public TextureRegion topRegion;
+    public TextureRegion topRegion;
 
     public float length = 40f;
     public float padSize = 40f;
