@@ -1,5 +1,6 @@
 package classicMod.library.blocks.legacyBlocks;
 
+import arc.Core;
 import arc.func.*;
 import arc.graphics.*;
 import arc.graphics.g2d.*;
