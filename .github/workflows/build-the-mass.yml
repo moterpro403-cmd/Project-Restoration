@@ -39,6 +39,9 @@ jobs:
           test -f src/themass/NeoplasmMod.java
           test -f src/themass/NeoplasmUnits.java
 
+      - name: Patch The Mass for Mindustry v160.7 and Restoration lifecycle
+        run: python3 .github/scripts/patch-the-mass.py
+
       - name: Build Android-compatible mod JAR
         run: |
           chmod +x ./gradlew
