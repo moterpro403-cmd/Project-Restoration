@@ -11,6 +11,7 @@ import arc.struct.Queue;
 import arc.util.*;
 import arc.util.io.*;
 import mindustry.content.*;
+import classicMod.content.RSounds;
 import mindustry.entities.*;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.*;
@@ -34,7 +35,7 @@ public class PayloadMassDriverOld extends PayloadBlock {
     public Effect shootEffect = Fx.shootBig2;
     public Effect smokeEffect = Fx.shootPayloadDriver;
     public Effect receiveEffect = Fx.payloadReceive;
-    public Sound shootSound = Sounds.shootBig;
+    public Sound shootSound = RSounds.shootBig;
     public float shake = 3f;
     public Effect transferEffect = new Effect(11f, 300f, e -> {
         if (!(e.data instanceof PayloadMassDriverData data)) return;
