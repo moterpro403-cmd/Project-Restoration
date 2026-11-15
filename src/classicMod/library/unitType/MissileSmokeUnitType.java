@@ -1,6 +1,7 @@
 package classicMod.library.unitType;
 
 import mindustry.ai.types.MissileAI;
+import classicMod.content.RSounds;
 import mindustry.entities.Effect;
 import mindustry.gen.*;
 import mindustry.graphics.Pal;
@@ -36,7 +37,7 @@ public class MissileSmokeUnitType extends UnitType {
         targetPriority = -1.0F;
         //outlineColor = Pal.darkOutline;
         fogRadius = 2.0F;
-        loopSound = Sounds.missileTrail;
+        loopSound = RSounds.missileTrail;
         loopSoundVolume = 0.05F;
         drawMinimap = false;
     }
