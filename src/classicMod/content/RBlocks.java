@@ -921,7 +921,7 @@ public class RBlocks {
 
                     missileAccelTime = 50f;
                     lowAltitude = true;
-                    loopSound = RRSounds.missileTrail;
+                    loopSound = RSounds.missileTrail;
                     loopSoundVolume = 0.6f;
                     deathSound = RSounds.largeExplosion;
                     targetAir = true;
