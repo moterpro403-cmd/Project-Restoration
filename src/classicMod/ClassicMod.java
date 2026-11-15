@@ -197,6 +197,7 @@ public class ClassicMod extends Mod{
     public static Func<String, String> getStatBundle = value -> bundle.get("stat." + value);
 
     public static void rebuildStaticImage(StaticImageBackground staticImageBackground){
+        staticImageBackground.disposeImages();
         staticImageBackground.image.clear();
         staticImageBackground.imageData.clear();
 
@@ -204,6 +205,7 @@ public class ClassicMod extends Mod{
         dataDirectory.child("prjRes-background").walk(fi -> {
             staticImageBackground.image.add(fi.nameWithoutExtension());
             Texture image = new Texture(fi);
+            staticImageBackground.ownedTextures.add(image);
             staticImageBackground.imageData.put(fi.nameWithoutExtension(), new TextureRegion(image));
         });
         rebuildManager();
