@@ -52,10 +52,12 @@ bridge = ('    private static final NeoplasmMod host = new NeoplasmMod();\\n'
           '    public static void loadContentFromHost() { host.loadContent(); }\\n'
           '    public static void initFromHost() { host.init(); }\\n\\n')
 if 'public static void loadContentFromHost()' not in mod_text:
-    anchor = '    @Override\\n    public void loadContent() {'
-    if anchor not in mod_text:
-        raise SystemExit('NeoplasmMod loadContent anchor missing.')
-    mod_text = mod_text.replace(anchor, bridge + anchor, 1)
+    marker = 'public void loadContent()'
+    index = mod_text.find(marker)
+    if index < 0:
+        raise SystemExit('NeoplasmMod loadContent method missing.')
+    line_start = mod_text.rfind('\\n', 0, index) + 1
+    mod_text = mod_text[:line_start] + bridge + mod_text[line_start:]
 mod_file.write_text(mod_text, encoding='utf-8')
 
 # Read values from the existing Restoration settings menu.
