@@ -24,7 +24,7 @@ import mindustry.type.weapons.BuildWeapon;
 
 import static arc.struct.SnapshotSeq.with;
 import static classicMod.ClassicMod.internalMod;
-import static classicMod.content.RRSounds.pewc;
+import static classicMod.content.RSounds.pew;
 import static classicMod.content.RVars.empty;
 import static mindustry.Vars.tilePayload;
 
@@ -90,7 +90,7 @@ public class RUnitTypes {
                     rotateSpeed = 1.0F;
                     rotationLimit = 70f;
                     ejectEffect = Fx.none;
-                    shootSound = RRSounds.lasershoot;
+                    shootSound = RSounds.lasershoot;
                     inaccuracy = 10f;
                     mirror = top = false;
                     rotate = true;
