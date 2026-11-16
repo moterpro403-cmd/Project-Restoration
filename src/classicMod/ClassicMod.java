@@ -445,6 +445,7 @@ public class ClassicMod extends Mod {
         NeoplasmDeathHeatmap.init();
         NeoplasmCordNetwork.init();
         NeoplasmPerfMonitor.init();
+        NeoplasmResourceRouter.init();
 
         useNewSound = settings.getBool("content-use-new-sound");
         new RItems().load();
