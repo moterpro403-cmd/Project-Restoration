@@ -639,7 +639,7 @@ public class RUnitTypes {
                 recoil = 0.6f;
                 inaccuracy = 4.5f;
                 velocityRnd = 0.14f;
-                shootSound = Sounds.loopSpray;
+                shootSound = Sounds.shoot;
                 bullet = new LiquidBulletType(Liquids.neoplasm) {{
                     speed = 5.4f;
                     lifetime = 40f;
@@ -662,7 +662,7 @@ public class RUnitTypes {
                 rotateSpeed = 1.6f;
                 reload = 140f;
                 inaccuracy = 6f;
-                shootSound = Sounds.shootArtillery;
+                shootSound = Sounds.shoot;
                 bullet = new ArtilleryBulletType(3.6f, 38f) {{
                     width = 11f;
                     height = 11f;
@@ -761,7 +761,7 @@ public class RUnitTypes {
                 rotate = true;
                 rotateSpeed = 4.5f;
                 reload = 38f;
-                shootSound = Sounds.shootSap;
+                shootSound = Sounds.shoot;
                 bullet = new BasicBulletType(4.2f, 26f) {{
                     width = 8f;
                     height = 10f;
@@ -1312,7 +1312,7 @@ public class RUnitTypes {
                     hitEffect = Fx.flakExplosion;
                     shootEffect = Fx.none;
                     smokeEffect = Fx.none;
-                    shootSound = RSounds.shootArtillery;
+                    shootSound = RSounds.shoot;
                 }};
             }});
         }};
@@ -1558,7 +1558,7 @@ public class RUnitTypes {
                 velocityRnd = 0.2f;
                 rotateSpeed = 0.06f * 12f;
                 rotate = true;
-                shootSound = RSounds.shootArtillery;
+                shootSound = RSounds.shoot;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12f) {{ //adjust the format of v5 for v7
@@ -1893,7 +1893,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-artillery-equip") {{
-                shootSound = RSounds.shootArtillery;
+                shootSound = RSounds.shoot;
                 outlines = false;
                 x = -10f;
                 y = 0f;
@@ -2183,7 +2183,7 @@ public class RUnitTypes {
             treadRects = new Rect[]{new Rect(22f - 154f/2f, 16f - 154f/2, 28f, 130f)};
 
             weapons.add(new Weapon(internalMod + "-howit-weapon"){{
-                shootSound = useNewSound ? Sounds.shootArtillerySmall : RSounds.bolt;
+                shootSound = useNewSound ? Sounds.shootSmall : RSounds.bolt;
                 layerOffset = 0.0001f;
                 reload = 120f;
                 shootY = 7f;
