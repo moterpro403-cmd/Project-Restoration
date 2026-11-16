@@ -1178,7 +1178,7 @@ public class RUnitTypes {
                 ejectEffect = Fx.none;
                 shake = 3f;
                 shootX = -6f;
-                shootSound = Sounds.shootBig;
+                shootSound = Sounds.shoot;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12) {{ //adjust the format of v5 for v7
@@ -1264,7 +1264,7 @@ public class RUnitTypes {
                 mirror = true;
                 reload = 12f;
 
-                shootSound = Sounds.shootSnap;
+                shootSound = Sounds.shoot;
                 ejectEffect = RFx.shellEjectSmall;
 
                 bullet = RBullets.standardGlaive;
@@ -1341,7 +1341,7 @@ public class RUnitTypes {
                 inaccuracy = 2f;
                 alternate = true;
                 ejectEffect = RFx.shellEjectSmall;
-                shootSound = Sounds.shootSnap;
+                shootSound = Sounds.shoot;
                 mirror = true;
                 showStatSprite = false;
 
@@ -1610,7 +1610,7 @@ public class RUnitTypes {
                 shake = 1f;
                 inaccuracy = 3f;
                 rotate = true;
-                shootSound = Sounds.shootBig;
+                shootSound = Sounds.shoot;
                 mirror = true;
 
                 bullet = new BasicBulletType(7f, 42f) {{ //adjust the format of v5 for v7
@@ -1975,7 +1975,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-chaos-equip") {{
-                shootSound = Sounds.shootBig;
+                shootSound = Sounds.shoot;
                 outlines = false;
                 x = -17f;
                 y = 0f;
@@ -2017,7 +2017,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-eradication-equip") {{
-                shootSound = Sounds.shootBig;
+                shootSound = Sounds.shoot;
                 outlines = false;
                 x = -21.5f;
                 y = 0f;
