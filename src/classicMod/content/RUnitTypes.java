@@ -1178,7 +1178,7 @@ public class RUnitTypes {
                 ejectEffect = Fx.none;
                 shake = 3f;
                 shootX = -6f;
-                shootSound = RSounds.shootBig;
+                shootSound = Sounds.shootBig;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12) {{ //adjust the format of v5 for v7
@@ -1264,7 +1264,7 @@ public class RUnitTypes {
                 mirror = true;
                 reload = 12f;
 
-                shootSound = RSounds.shootSnap;
+                shootSound = Sounds.shootSnap;
                 ejectEffect = RFx.shellEjectSmall;
 
                 bullet = RBullets.standardGlaive;
@@ -1312,7 +1312,7 @@ public class RUnitTypes {
                     hitEffect = Fx.flakExplosion;
                     shootEffect = Fx.none;
                     smokeEffect = Fx.none;
-                    shootSound = RSounds.shoot;
+                    shootSound = Sounds.shoot;
                 }};
             }});
         }};
@@ -1341,7 +1341,7 @@ public class RUnitTypes {
                 inaccuracy = 2f;
                 alternate = true;
                 ejectEffect = RFx.shellEjectSmall;
-                shootSound = RSounds.shootSnap;
+                shootSound = Sounds.shootSnap;
                 mirror = true;
                 showStatSprite = false;
 
@@ -1558,7 +1558,7 @@ public class RUnitTypes {
                 velocityRnd = 0.2f;
                 rotateSpeed = 0.06f * 12f;
                 rotate = true;
-                shootSound = RSounds.shoot;
+                shootSound = Sounds.shoot;
                 mirror = true;
 
                 bullet = new MissileBulletType(2.7f, 12f) {{ //adjust the format of v5 for v7
@@ -1610,7 +1610,7 @@ public class RUnitTypes {
                 shake = 1f;
                 inaccuracy = 3f;
                 rotate = true;
-                shootSound = RSounds.shootBig;
+                shootSound = Sounds.shootBig;
                 mirror = true;
 
                 bullet = new BasicBulletType(7f, 42f) {{ //adjust the format of v5 for v7
@@ -1893,7 +1893,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-artillery-equip") {{
-                shootSound = RSounds.shoot;
+                shootSound = Sounds.shoot;
                 outlines = false;
                 x = -10f;
                 y = 0f;
@@ -1975,7 +1975,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-chaos-equip") {{
-                shootSound = RSounds.shootBig;
+                shootSound = Sounds.shootBig;
                 outlines = false;
                 x = -17f;
                 y = 0f;
@@ -2017,7 +2017,7 @@ public class RUnitTypes {
             controller = u -> new ReplacementGroundAI();
 
             weapons.add(new Weapon(internalMod + "-eradication-equip") {{
-                shootSound = RSounds.shootBig;
+                shootSound = Sounds.shootBig;
                 outlines = false;
                 x = -21.5f;
                 y = 0f;
@@ -2183,7 +2183,7 @@ public class RUnitTypes {
             treadRects = new Rect[]{new Rect(22f - 154f/2f, 16f - 154f/2, 28f, 130f)};
 
             weapons.add(new Weapon(internalMod + "-howit-weapon"){{
-                shootSound = useNewSound ? Sounds.shootSmall : RSounds.bolt;
+                shootSound = useNewSound ? Sounds.shoot : RSounds.bolt;
                 layerOffset = 0.0001f;
                 reload = 120f;
                 shootY = 7f;
