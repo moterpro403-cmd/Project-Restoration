@@ -452,6 +452,7 @@ public class ClassicMod extends Mod {
         new RBullets().load();
         new RUnitTypes().load();
         new RBlocks().load();
+        NeoplasmEconomy.apply();
         new RSectorPresents().load();
         new RPlanets().load();
 
