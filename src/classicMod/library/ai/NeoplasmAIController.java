@@ -329,7 +329,13 @@ public class NeoplasmAIController extends AIController {
 
     public void routeAir() {
         if (unit == null || target == null) return;
+        if (isSuicideBomber(unit)) {
+            vec.set(target.getX() - unit.x, target.getY() - unit.y);
+            if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
+            return;
+        }
         Tile destination = target.tileOn();
+        if (destination != null && applyStrategicTarget(destination, unit.range() * 0.8f, PathfinderCustom.costNone)) return;
         if (destination != null && avoidNearbyDanger(destination)) return;
         vec.set(target.getX() - unit.x, target.getY() - unit.y);
         if (!vec.isZero()) unit.movePref(vec.setLength(unit.speed()));
@@ -338,6 +344,17 @@ public class NeoplasmAIController extends AIController {
     @Override
     public void pathfind(int pathTarget) {
         if (unit == null) return;
+        int costType = unit.type.flowfieldPathType;
+        Tile current = unit.tileOn();
+        if (current != null && !isSuicideBomber(unit)) {
+            Tile strategic = NeoplasmStrategicPathfinder.nextStep(
+                current, unit.team, costType, pathTarget, unit.id
+            );
+            if (strategic != null && strategic != current && unit.canPass(strategic.x, strategic.y)) {
+                unit.movePref(vec.trns(unit.angleTo(strategic.worldx(), strategic.worldy()), unit.speed()));
+                return;
+            }
+        }
         if (!applyDodgePathfind(pathTarget, false)) super.pathfind(pathTarget);
     }
 
