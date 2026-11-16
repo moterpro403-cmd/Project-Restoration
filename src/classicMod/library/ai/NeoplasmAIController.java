@@ -376,4 +376,91 @@ public class NeoplasmAIController extends AIController {
         }
         return closest;
     }
+
+    // Strategic route decisions are staggered and cached so large colonies do
+    // not rebuild a full route for every unit on every simulation tick.
+    private int strategicOrigin = -1, strategicDestination = -1, strategicTarget = -1;
+    private float strategicUntil = -1f;
+    private boolean strategicResult;
+    private int riskInterval = 5;
+    private int activeDecisionTick = Integer.MIN_VALUE;
+    private float nextRiskIntervalRefresh = -1f;
+
+    private boolean shouldUpdateRisk() {
+        if (unit == null || isSuicideBomber(unit) || Vars.world == null
+                || (Vars.net != null && Vars.net.client())) return false;
+        int tick = (int)Time.time;
+        if (activeDecisionTick == tick) return true;
+
+        if (Time.time >= nextRiskIntervalRefresh) {
+            var core = unit.closestEnemyCore();
+            float distance2 = core == null ? 0f : unit.dst2(core);
+            riskInterval = distance2 > 2560f * 2560f ? 10
+                : distance2 > 1024f * 1024f ? 5 : 2;
+            nextRiskIntervalRefresh = Time.time + 60f;
+        }
+        if ((tick + unit.id) % riskInterval != 0) return false;
+        activeDecisionTick = tick;
+        NeoplasmPerfMonitor.riskDecision();
+        return true;
+    }
+
+    /**
+     * Follows a cached strategic route to a specific target, preferring open
+     * flanks over turret-covered chokepoints. Returns false when the ordinary
+     * movement controller should retain control.
+     */
+    public boolean applyStrategicTarget(Tile destination, float stopDistance, int costType) {
+        long perfStart = NeoplasmPerfMonitor.startTimer();
+        try {
+            if (unit == null || destination == null || Vars.world == null
+                    || RVars.pathfinderCustom == null || isSuicideBomber(unit)) return false;
+            if (unit.within(destination.worldx(), destination.worldy(), stopDistance)) return false;
+
+            Tile current = unit.tileOn();
+            if (current == null) return false;
+            int origin = current.array();
+            int target = destination.array();
+
+            if (Time.time < strategicUntil && strategicOrigin == origin
+                    && strategicDestination == target) {
+                if (!strategicResult) return false;
+                Tile cached = Vars.world.tile(strategicTarget);
+                if (cached != null && cached != current && unit.canPass(cached.x, cached.y)) {
+                    unit.movePref(vec.trns(unit.angleTo(cached.worldx(), cached.worldy()), unit.speed()));
+                    return true;
+                }
+            }
+
+            if (!shouldUpdateRisk()) return false;
+            strategicOrigin = origin;
+            strategicDestination = target;
+            strategicUntil = Time.time + 6f;
+            strategicResult = false;
+            strategicTarget = -1;
+
+            Tile next = NeoplasmStrategicPathfinder.nextStepTo(
+                current, destination, unit.team, costType, unit.id, stopDistance
+            );
+            if (next == null || next == current || !unit.canPass(next.x, next.y)) return false;
+
+            strategicResult = true;
+            strategicTarget = next.array();
+            unit.movePref(vec.trns(unit.angleTo(next.worldx(), next.worldy()), unit.speed()));
+            return true;
+        } finally {
+            NeoplasmPerfMonitor.endTimer(NeoplasmPerfMonitor.TIMER_STEERING, perfStart);
+        }
+    }
+
+    /** Mycelid support hook: ask the bounded vascular repair manager to bridge
+     * an isolated cord back to a Heart-fed branch. */
+    public boolean trySeedCordOrHeart(boolean allowHeart) {
+        if (unit == null || Vars.world == null || isSuicideBomber(unit)
+                || (Vars.net != null && Vars.net.client())) return false;
+        Tile start = unit.tileOn();
+        if (start == null) return false;
+        return NeoplasmCordNetwork.tryReconnect(start, unit.team, allowHeart ? 32 : 24);
+    }
+
 }
