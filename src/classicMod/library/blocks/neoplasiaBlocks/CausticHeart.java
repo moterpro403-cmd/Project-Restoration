@@ -61,10 +61,14 @@ public class CausticHeart extends NeoplasmBlock {
             return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
         }
 
-        public boolean canCreate(Team team, UnitType type) {
+        public boolean canCreateOriginal(Team team, UnitType type) {
             return team.data().countType(type) < unitCap
                 && NeoplasmPopulation.canSpawn(team, type)
                 && !type.isBanned();
+        }
+
+        public boolean canCreate(Team team, UnitType type) {
+            return NeoplasmEconomy.canCreate(this, team, type);
         }
 
         @Override
