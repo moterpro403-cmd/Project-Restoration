@@ -1,9 +1,11 @@
 package classicMod.library.blocks.neoplasiaBlocks;
 
+import arc.Events;
 import arc.struct.Seq;
 import arc.util.Time;
 import mindustry.content.Items;
 import mindustry.gen.Building;
+import mindustry.game.EventType;
 import mindustry.type.Item;
 import mindustry.world.Tile;
 
@@ -24,8 +26,16 @@ public final class NeoplasmResourceRouter{
     private static final IdentityHashMap<CausticCord.CordBuild, Integer> depth = new IdentityHashMap<>();
     private static final IdentityHashMap<CausticCord.CordBuild, Float> retry = new IdentityHashMap<>();
     private static boolean busy;
+    private static boolean initialized;
 
     private NeoplasmResourceRouter(){}
+
+    public static void init(){
+        if(initialized) return;
+        initialized = true;
+        Events.on(EventType.WorldLoadEvent.class, event -> clear());
+        Events.on(EventType.ResetEvent.class, event -> clear());
+    }
 
     public static void update(CausticCord.CordBuild source){
         if(source == null || busy || source.tile == null || source.team == null || source.items == null) return;
