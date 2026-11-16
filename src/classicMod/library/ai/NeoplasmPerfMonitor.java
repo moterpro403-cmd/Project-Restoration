@@ -17,6 +17,7 @@ public final class NeoplasmPerfMonitor {
     public static final int TIMER_PATH = 0;
     public static final int TIMER_STEERING = 1;
     public static final int TIMER_HEAT = 2;
+    public static final int TIMER_ROUTE = 3;
     public static final int TIMER_TURRET = 4;
     public static final int TIMER_TRAFFIC = 5;
     public static final int TIMER_CORD = 6;
@@ -32,6 +33,7 @@ public final class NeoplasmPerfMonitor {
     private static float nextReport;
 
     private static int pathRequests;
+    private static int routeBuilds;
     private static int riskDecisions;
     private static int turretScans;
     private static int trafficScans;
@@ -61,6 +63,7 @@ public final class NeoplasmPerfMonitor {
     }
 
     public static void pathRequest(){ if(enabled) pathRequests++; }
+    public static void routeBuild(){ if(enabled) routeBuilds++; }
     public static void riskDecision(){ if(enabled) riskDecisions++; }
     public static void turretScan(){ if(enabled) turretScans++; }
     public static void trafficScan(){ if(enabled) trafficScans++; }
@@ -148,6 +151,7 @@ public final class NeoplasmPerfMonitor {
 
     private static void reset(){
         pathRequests = 0;
+        routeBuilds = 0;
         riskDecisions = 0;
         turretScans = 0;
         trafficScans = 0;
