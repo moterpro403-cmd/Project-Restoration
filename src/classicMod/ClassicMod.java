@@ -15,6 +15,7 @@ import classicMod.content.*;
 import classicMod.library.EventTypeExtended;
 import classicMod.library.blocks.neoplasiaBlocks.NeoplasmCordNetwork;
 import classicMod.library.blocks.neoplasiaBlocks.NeoplasmEconomy;
+import classicMod.library.blocks.neoplasiaBlocks.NeoplasmResourceRouter;
 import classicMod.library.ai.*;
 import classicMod.library.ui.UIExtended;
 import classicMod.library.ui.dialog.*;
