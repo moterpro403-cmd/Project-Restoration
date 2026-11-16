@@ -10,6 +10,7 @@ import arc.util.Time;
 import classicMod.content.RUnitTypes;
 import classicMod.content.RVars;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
+import classicMod.library.blocks.neoplasiaBlocks.NeoplasmCordNetwork;
 import mindustry.Vars;
 import mindustry.ai.types.SuicideAI;
 import mindustry.content.UnitTypes;
