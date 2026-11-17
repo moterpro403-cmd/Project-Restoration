@@ -197,93 +197,114 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void growCord(Block block) {
-            // Throttle this cord only; never share the cooldown with the team.
             if (nextCordGrowthTime >= 0f && Time.time < nextCordGrowthTime) {
                 grow = false;
                 return;
             }
-            // Healthy, well-fed arteries can grow modestly faster; keep the existing
-            // independent cooldown and never impose a team-wide sprout budget.
+
             float pressureScale = connected
                 ? Mathf.clamp(vascularPressure, 0.75f, 1.35f)
                 : 1f;
             nextCordGrowthTime = Time.time + cordGrowthInterval / pressureScale;
 
-            Tile origin = this.tile;
-            if(origin == null || origin == Vars.emptyTile || Vars.world == null){
+            Tile origin = tile;
+            if (origin == null || origin == Vars.emptyTile || Vars.world == null) {
                 grow = false;
                 return;
             }
 
             growRestart++;
-            task = (task != 0) ? task : PathfinderExtended.fieldVent;
-            Tile next = pathfind(task);
-            if(passable(next, true)){
-                Seq<Tile> nearTiles = new Seq<>(4);
-                for(var d : Geometry.d4){
-                    Tile dTile = Vars.world.tile(next.x + d.x, next.y + d.y);
-                    // A valid path target can still be adjacent to the map edge.
-                    if(dTile == null) continue;
 
-                    int rot = origin.relativeTo(dTile);
-                    if(rot < 0) continue;
-                    Tile nearRight = dTile.nearby(Mathf.mod(rot + 1, 4));
-                    Tile nearLeft = dTile.nearby(Mathf.mod(rot - 1, 4));
-                    Tile nearFront = dTile.nearby(rot);
-                    if(passable(dTile, true)
-                        && passable(nearRight, false)
-                        && passable(nearLeft, false)
-                        && passable(nearFront, true)
-                        && dTile.relativeTo(origin) != -1){
-                        nearTiles.add(dTile);
-                    }
+            // A dead-end vent/ore field must not freeze the colony. Try the
+            // current objective first, then the other two valid colony targets.
+            int requestedTask = task == 0 ? PathfinderExtended.fieldVent : task;
+            int[] routeTasks = {
+                requestedTask,
+                PathfinderExtended.fieldVent,
+                PathfinderExtended.fieldOres,
+                Pathfinder.fieldCore
+            };
+            Tile next = null;
+            int selectedTask = requestedTask;
+            for (int routeTask : routeTasks) {
+                if (routeTask != requestedTask && routeTask == PathfinderExtended.fieldVent) continue;
+                if (routeTask == selectedTask && next != null) continue;
+                Tile candidate = pathfind(routeTask);
+                if (candidate != null && candidate != origin && passable(candidate, true)) {
+                    next = candidate;
+                    selectedTask = routeTask;
+                    break;
+                }
+            }
+
+            if (next == null) {
+                grow = false;
+                return;
+            }
+            task = selectedTask;
+
+            // A diagonal flowfield step can be bridged by either orthogonal
+            // tile. A cardinal step can be placed directly; do not require
+            // spare tiles on both sides or the colony stalls in narrow lanes.
+            Seq<Tile> nearTiles = new Seq<>(4);
+            for (Point2 direction : Geometry.d4) {
+                Tile candidate = Vars.world.tile(next.x + direction.x, next.y + direction.y);
+                if (candidate == null) continue;
+
+                int rotation = origin.relativeTo(candidate);
+                if (rotation < 0) continue;
+                Tile sideA = candidate.nearby(Mathf.mod(rotation + 1, 4));
+                Tile sideB = candidate.nearby(Mathf.mod(rotation - 1, 4));
+                if (!passable(candidate, true)) continue;
+                if (candidate.build != null && !(candidate.build instanceof CordBuild)) continue;
+
+                // Prefer open elbow tiles, but permit a tight corridor when
+                // the flowfield says it is the only route forward.
+                if (passable(sideA, false) || passable(sideB, false)) {
+                    if (!nearTiles.contains(candidate)) nearTiles.add(candidate);
+                }
+            }
+
+            if (nearTiles.isEmpty()) {
+                int rotation = origin.relativeTo(next);
+                if (rotation >= 0 && passable(next, true)
+                    && (next.build == null || next.build instanceof CordBuild)) {
+                    nearTiles.add(next);
+                }
+            }
+
+            if (!nearTiles.isEmpty()) {
+                Tile objective = null;
+                if (task == PathfinderExtended.fieldVent) objective = getClosestVent();
+                else if (task == PathfinderExtended.fieldOres) objective = getClosestOre();
+
+                if (objective != null) {
+                    Tile finalObjective = objective;
+                    nearTiles.sort(candidate -> cordRouteScore(candidate, finalObjective));
+                } else {
+                    // A valid flowfield step is already progress even when the
+                    // map has no free vent/ore tile to use as a secondary target.
+                    Tile finalNext = next;
+                    nearTiles.sort(candidate -> candidate.dst(finalNext));
                 }
 
-                if(nearTiles.size <= 0 && next.relativeTo(origin) != -1){
-                    int rot = origin.relativeTo(next);
-                    Tile nearRight = next.nearby(Mathf.mod(rot + 1, 4));
-                    Tile nearLeft = next.nearby(Mathf.mod(rot - 1, 4));
-                    if(passable(next, true)
-                        && passable(nearRight, false)
-                        && passable(nearLeft, false)
-                        && next.relativeTo(origin) != -1){
-                        nearTiles.add(next);
+                Tile chosen = nearTiles.first();
+                int rotation = origin.relativeTo(chosen);
+                if (rotation >= 0) {
+                    if (chosen.build == null && !CantReplace(chosen.block())) {
+                        chosen.setBlock(RBlocks.cord, team);
                     }
-                }
-
-                if(nearTiles.size > 0){
-                    Tile nTile = null;
-                    Tile closestVent = task == PathfinderExtended.fieldVent ? getClosestVent() : null;
-                    Tile closestOre = task == PathfinderExtended.fieldOres ? getClosestOre() : null;
-                    // Prefer the intended resource/front while gently avoiding
-                    // enemy crossfire, remembered death zones, and narrow kill corridors.
-                    if(closestVent != null){
-                        nearTiles.sort(tile1 -> cordRouteScore(tile1, closestVent));
-                        nTile = nearTiles.first();
-                    }
-                    if(closestOre != null){
-                        nearTiles.sort(tile1 -> cordRouteScore(tile1, closestOre));
-                        nTile = nearTiles.first();
-                    }
-                    if(task == Pathfinder.fieldCore){
-                        nearTiles.sort(tile1 -> cordRouteScore(tile1, next));
-                        nTile = nearTiles.first();
-                    }
-                    if(nTile != null){
-                        int rot = origin.relativeTo(nTile);
-                        if(rot >= 0){
-                            if(!CantReplace(nTile.block())) nTile.setBlock(RBlocks.cord, team);
-                            if(nTile.build instanceof CordBuild cordBuild){
-                                cordBuild.task = Mathf.randomBoolean(0.98f) ? task :
-                                    Mathf.randomBoolean(0.5f) ? PathfinderExtended.fieldOres : PathfinderExtended.fieldVent;
-                                cordBuild.facingRot = rot;
-                                cordBuild.prev = this;
-                                growRestart = 0;
-                            }
-                        }
+                    if (chosen.build instanceof CordBuild cordBuild && cordBuild != this) {
+                        cordBuild.task = Mathf.randomBoolean(0.98f) ? task
+                            : (Mathf.randomBoolean(0.5f)
+                                ? PathfinderExtended.fieldOres : PathfinderExtended.fieldVent);
+                        cordBuild.facingRot = rotation;
+                        cordBuild.prev = this;
+                        growRestart = 0;
                     }
                 }
             }
+
             super.growCord(block);
         }
 
@@ -305,7 +326,11 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         }
         @Nullable
         public Tile getClosestOre() {
-            return NeoplasmResourceRouter.nextReachableOre(this);
+            Seq<Tile> available = PathfinderExtended.Ores.copy();
+            available.removeAll(ore -> ore == null || ore.build != null
+                || (!RVars.CordCanDrill.contains(ore.drop())
+                    && !RVars.CordCanDrill.contains(ore.wallDrop())));
+            return Geometry.findClosest(x, y, available);
         }
 
 
@@ -475,7 +500,48 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void updateAfterBeat() {
-            NeoplasmResourceRouter.update(this);
+            Item item = items.first();
+            if (item == null) {
+                current = null;
+                return;
+            }
+
+            Seq<NeoplasmBuilding> spawnerDestinations = new Seq<>();
+            Seq<NeoplasmBuilding> otherDestinations = new Seq<>();
+
+            // Use actual footprint adjacency. Feed a spawner only when it
+            // accepts this exact ingredient; otherwise continue along the vein.
+            for (Building nearby : proximity) {
+                NeoplasmBuilding destination = getNeoplasm(nearby);
+                if (destination == null || destination == this || !validBuilding(destination, item)) continue;
+                if (destination.block instanceof CausticSpawner) {
+                    if (!spawnerDestinations.contains(destination, true)) spawnerDestinations.add(destination);
+                } else if (!otherDestinations.contains(destination, true)) {
+                    otherDestinations.add(destination);
+                }
+            }
+
+            // Fallback for the first update after a building is placed.
+            if (spawnerDestinations.isEmpty() && otherDestinations.isEmpty()) {
+                for (int i = 0; i < 4; i++) {
+                    NeoplasmBuilding destination = getNeoplasm(nearby(Mathf.mod(facingRot + i, 4)));
+                    if (validBuilding(destination, item) && !otherDestinations.contains(destination, true)) {
+                        otherDestinations.add(destination);
+                    }
+                }
+            }
+
+            Seq<NeoplasmBuilding> destinations = spawnerDestinations.isEmpty()
+                ? otherDestinations : spawnerDestinations;
+            if (destinations.isEmpty()) return;
+
+            NeoplasmBuilding destination = destinations.get(Mathf.random(destinations.size - 1));
+            if (!validBuilding(destination, item)) return;
+
+            current = null;
+            items.remove(item, 1);
+            destination.handleItem(this, item);
+            if (items.any()) current = items.first();
         }
 
         public void coverQueue(Block cordPlacement){
