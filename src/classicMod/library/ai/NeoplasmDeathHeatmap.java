@@ -59,6 +59,7 @@ public final class NeoplasmDeathHeatmap {
     private static boolean initialized;
     private static int worldWidth = -1;
     private static int worldHeight = -1;
+    private static Object heatWorld;
 
     private NeoplasmDeathHeatmap() {
     }
@@ -149,7 +150,8 @@ public final class NeoplasmDeathHeatmap {
         int height = Vars.world.height();
         if (width <= 0 || height <= 0) return;
 
-        if (width != worldWidth || height != worldHeight) {
+        if (heatWorld != Vars.world || width != worldWidth || height != worldHeight) {
+            heatWorld = Vars.world;
             grids.clear();
             revisions.clear();
             worldWidth = width;
@@ -299,6 +301,7 @@ public final class NeoplasmDeathHeatmap {
         revisions.clear();
         worldWidth = -1;
         worldHeight = -1;
+        heatWorld = null;
         NeoplasmStrategicPathfinder.clear();
     }
 
