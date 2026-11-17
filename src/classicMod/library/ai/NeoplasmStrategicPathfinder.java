@@ -59,6 +59,9 @@ public final class NeoplasmStrategicPathfinder {
     private static final HashMap<Integer, TrafficField> trafficFields = new HashMap<>();
     private static Object threatWorld;
     private static int threatWidth = -1, threatHeight = -1;
+    /** Prevent route and traffic fields from leaking across maps with equal dimensions. */
+    private static Object routeWorld;
+    private static int routeWorldWidth = -1, routeWorldHeight = -1;
 
     // Reusable scratch buffers for full-map Dijkstra rebuilds and threat scans (zero GC churn).
     private static float[] scratchHeat = new float[0];
@@ -119,6 +122,16 @@ public final class NeoplasmStrategicPathfinder {
         float now = Time.time;
         int width = base != null ? base.width : Vars.world.width();
         int height = base != null ? base.height : Vars.world.height();
+
+        // WorldLoadEvent clearing is not the only entry point (custom maps,
+        // tests and reloads can replace the world directly). Guard by identity.
+        if (routeWorld != Vars.world || routeWorldWidth != width || routeWorldHeight != height) {
+            clear();
+            routeWorld = Vars.world;
+            routeWorldWidth = width;
+            routeWorldHeight = height;
+        }
+
         int revision = NeoplasmDeathHeatmap.getRevision(team);
         int targetHash = base != null ? targetHash(base) : explicitDest.array();
 
@@ -137,7 +150,17 @@ public final class NeoplasmStrategicPathfinder {
         RouteField rebuilt = build(team, costType, base, explicitDest, stopDistance, targetHash, revision, now);
         if (rebuilt != null) {
             if (fields.size() >= maxCachedRoutes && !fields.containsKey(key)) {
-                fields.clear();
+                // Evict only the oldest route; clearing the whole cache caused
+                // every unit to trigger another expensive full-map Dijkstra.
+                Long oldestKey = null;
+                float oldestBuiltAt = Float.POSITIVE_INFINITY;
+                for (java.util.Map.Entry<Long, RouteField> entry : fields.entrySet()) {
+                    if (entry.getValue().builtAt < oldestBuiltAt) {
+                        oldestBuiltAt = entry.getValue().builtAt;
+                        oldestKey = entry.getKey();
+                    }
+                }
+                if (oldestKey != null) fields.remove(oldestKey);
             }
             fields.put(key, rebuilt);
         }
@@ -660,5 +683,8 @@ public final class NeoplasmStrategicPathfinder {
         threatWorld = null;
         threatWidth = -1;
         threatHeight = -1;
+        routeWorld = null;
+        routeWorldWidth = -1;
+        routeWorldHeight = -1;
     }
 }
