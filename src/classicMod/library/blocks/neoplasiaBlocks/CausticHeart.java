@@ -32,7 +32,8 @@ public class CausticHeart extends NeoplasmBlock {
         flags = EnumSet.of(BlockFlag.core);
         unitCapModifier = 10;
         itemCapacity = 10;
-        unitCap = 8;
+        // Keep the Heart's local eligibility cap aligned with the shared Blob cap.
+        unitCap = NeoplasmPopulation.maxBlobs;
     }
 
     public boolean canPlaceOn(Tile tile, Team team, int rotation) {
@@ -61,36 +62,45 @@ public class CausticHeart extends NeoplasmBlock {
             return (vent != null && !(vent.build instanceof CausticHeart.HeartBuilding)) ? vent : null;
         }
 
-        public boolean canCreateOriginal(Team team, UnitType type) {
-            return team.data().countType(type) < unitCap
-                && NeoplasmPopulation.canSpawn(team, type)
-                && !type.isBanned();
+        public boolean canCreate(Team team, UnitType type) {
+            if (team == null || type == null || type.isBanned()) return false;
+            if (!NeoplasmPopulation.canSpawn(team, type)) return false;
+            if (team.data().countType(type) >= unitCap) return false;
+
+            // Blob production is funded by one Graphite stored in the Heart.
+            // Checking availability must not consume the item; charge it only
+            // after the unit has actually been created and added.
+            return type != RUnitTypes.blob || items.get(Items.graphite) > 0;
         }
 
-        public boolean canCreate(Team team, UnitType type) {
-            return NeoplasmEconomy.canCreate(this, team, type);
+        private boolean spawnUnit(UnitType type) {
+            if (Vars.net.client() || !canCreate(team, type)) return false;
+            Unit spawned = type.create(team);
+            if (spawned == null) return false;
+
+            spawned.set(this);
+            spawned.rotation(90f);
+            spawned.add();
+
+            if (type == RUnitTypes.blob) items.remove(Items.graphite, 1);
+            unit = spawned;
+            for (int i = 0; i < 5; i++) {
+                Fx.neoplasiaSmoke.at(x + Mathf.random(1), y + Mathf.random(1));
+            }
+            return true;
         }
 
         @Override
         public void updateBeat() {
-
-            if (Mathf.chance(0.05) && getClosestVent() != null){
-                if (!Vars.net.client() && canCreate(team, unitType)) {
-                    unit = unitType.create(team);
-                    unit.set(this);
-                    unit.rotation(90f);
-                    unit.add();
-                    //unit.vel.y = launchVelocity;
-                    for (int i = 0; i < 5; i++) {
-                        Fx.neoplasiaSmoke.at(this.x + Mathf.random(1), this.y + Mathf.random(1));
-                    }
-                    //Effect.shake(4f*1.5f, 5f, this);
-                    //units.add(unit);
-                }
+            // Blob production must not depend on a second unused vent being
+            // present nearby. The Heart itself already occupies a valid vent.
+            if (!Vars.net.client() && Mathf.chance(0.35f)) {
+                spawnUnit(unitType);
             }
 
             // Keep one Matte carrier available per team to rescue and relocate stuck blobs.
-            if (!Vars.net.client() && team.data().countType(RUnitTypes.matte) < 1 && !RUnitTypes.matte.isBanned()) {
+            if (!Vars.net.client() && team.data().countType(RUnitTypes.matte) < 1
+                    && !RUnitTypes.matte.isBanned()) {
                 Unit matteUnit = RUnitTypes.matte.create(team);
                 matteUnit.set(this);
                 matteUnit.rotation(90f);
