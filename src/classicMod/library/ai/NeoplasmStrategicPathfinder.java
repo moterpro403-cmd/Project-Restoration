@@ -133,7 +133,7 @@ public final class NeoplasmStrategicPathfinder {
         }
 
         int revision = NeoplasmDeathHeatmap.getRevision(team);
-        int targetHash = base != null ? targetHash(base) : explicitDest.array();
+        int targetHash = base != null ? targetHash(base) : 31 * explicitDest.array() + Math.round(stopDistance / Vars.tilesize);
 
         RouteField cached = fields.get(key);
         boolean heatChanged = cached != null && cached.heatRevision != revision;
