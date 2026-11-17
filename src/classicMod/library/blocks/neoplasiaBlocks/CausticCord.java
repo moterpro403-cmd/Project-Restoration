@@ -121,6 +121,9 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Nullable
         public Item current;
+        /** Last building that handed cargo to this cord; avoids immediate backtracking. */
+        @Nullable
+        private Building lastItemSource;
         public int blendbits;
         public int xscl;
         public int yscl;
@@ -152,6 +155,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
 
         @Override
         public void handleItem(Building source, Item item) {
+            lastItemSource = source;
             current = item;
             super.handleItem(source, item);
         }
@@ -552,7 +556,8 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             // accepts this exact ingredient; otherwise continue along the vein.
             for (Building nearby : proximity) {
                 NeoplasmBuilding destination = getNeoplasm(nearby);
-                if (destination == null || destination == this || !validBuilding(destination, item)) continue;
+                if (destination == null || destination == this || nearby == lastItemSource
+                        || !validBuilding(destination, item)) continue;
                 if (destination.block instanceof CausticSpawner) {
                     if (!spawnerDestinations.contains(destination, true)) spawnerDestinations.add(destination);
                 } else if (!otherDestinations.contains(destination, true)) {
@@ -560,11 +565,14 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 }
             }
 
-            // Fallback for the first update after a building is placed.
+            // Fallback for the first update after placement or a true dead end:
+            // only backtrack when there is no other legal neighboring route.
             if (spawnerDestinations.isEmpty() && otherDestinations.isEmpty()) {
-                for (int i = 0; i < 4; i++) {
-                    NeoplasmBuilding destination = getNeoplasm(nearby(Mathf.mod(facingRot + i, 4)));
-                    if (validBuilding(destination, item) && !otherDestinations.contains(destination, true)) {
+                for (Building nearby : proximity) {
+                    NeoplasmBuilding destination = getNeoplasm(nearby);
+                    if (destination != null && destination != this
+                            && validBuilding(destination, item)
+                            && !otherDestinations.contains(destination, true)) {
                         otherDestinations.add(destination);
                     }
                 }
