@@ -191,8 +191,17 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         }
 
         boolean validBuilding(Building dest, Item item){
-            if (item == null || dest == null) return false;
-            return dest.acceptItem(this, item) && dest.team == this.team;
+            if (item == null || dest == null || dest.team != this.team) return false;
+
+            if (dest instanceof CausticHeart.HeartBuilding) {
+                return item == Items.graphite && dest.acceptItem(this, item);
+            }
+
+            if (dest instanceof CausticSpawner) {
+                return dest.acceptItem(this, item);
+            }
+
+            return dest instanceof CordBuild && dest.acceptItem(this, item);
         }
 
         @Override
@@ -226,14 +235,48 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
             };
             Tile next = null;
             int selectedTask = requestedTask;
-            for (int routeTask : routeTasks) {
-                if (routeTask != requestedTask && routeTask == PathfinderExtended.fieldVent) continue;
-                if (routeTask == selectedTask && next != null) continue;
+            for (int i = 0; i < routeTasks.length; i++) {
+                int routeTask = routeTasks[i];
+                boolean duplicate = false;
+                for (int j = 0; j < i; j++) {
+                    if (routeTasks[j] == routeTask) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (duplicate) continue;
+
                 Tile candidate = pathfind(routeTask);
                 if (candidate != null && candidate != origin && passable(candidate, true)) {
                     next = candidate;
                     selectedTask = routeTask;
                     break;
+                }
+            }
+
+            // Flowfields can legitimately have no targets on small/custom
+            // maps. Continue down the vein's heading, then choose the nearest
+            // open side tile rather than permanently stalling at the last cord.
+            if (next == null) {
+                Point2 forward = Geometry.d4[Mathf.mod(facingRot, 4)];
+                Tile forwardTile = Vars.world.tile(origin.x + forward.x, origin.y + forward.y);
+                if (forwardTile != null && forwardTile.build == null && passable(forwardTile, true)) {
+                    next = forwardTile;
+                } else {
+                    Tile bestLocal = null;
+                    float bestScore = Float.MAX_VALUE;
+                    for (Point2 direction : Geometry.d8) {
+                        Tile candidate = Vars.world.tile(origin.x + direction.x, origin.y + direction.y);
+                        if (candidate == null || candidate.build != null || !passable(candidate, true)) continue;
+                        if (prev != null && prev.tile == candidate) continue;
+                        float headingPenalty = 1f - (direction.x * forward.x + direction.y * forward.y) * 0.5f;
+                        float score = headingPenalty * 12f + candidate.dst(origin);
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestLocal = candidate;
+                        }
+                    }
+                    next = bestLocal;
                 }
             }
 
