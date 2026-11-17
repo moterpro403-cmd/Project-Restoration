@@ -505,10 +505,11 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if (cordMode && (Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null) ||
-                        (Units.findEnemyTile(team, x, y, 440f, b -> b.isValid() && (
-                                b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 200f)
-                        ) != null)) {
+                if (cordMode && (
+                        Units.closestEnemy(team, x, y, 440f, u -> u.type.killable && u.type.hittable && u.range() > 240f) != null
+                        || Units.findEnemyTile(team, x, y, 440f, b -> b.isValid()
+                                && b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 200f) != null
+                )) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 440f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.pore)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.pore);
@@ -516,10 +517,11 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                     }
                 }
 
-                if (cordMode && (Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null) ||
-                        (Units.findEnemyTile(team, x, y, 140f, b -> b.isValid() && (
-                                b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 80f)
-                        ) != null)) {
+                if (cordMode && (
+                        Units.closestEnemy(team, x, y, 120f, u -> u.type.killable && u.type.hittable && u.range() > 120f) != null
+                        || Units.findEnemyTile(team, x, y, 140f, b -> b.isValid()
+                                && b instanceof Turret.TurretBuild turretBuild && turretBuild.range() >= 80f) != null
+                )) {
                     boolean tooClose = Units.closestBuilding(team, x, y, 120f, b -> (b instanceof CausticTurret.CausticTurretBuild && b.block == RBlocks.bloom)) != null;
                     if (!tooClose) {
                         ReplaceTo(RBlocks.bloom);
