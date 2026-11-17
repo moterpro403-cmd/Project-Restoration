@@ -193,15 +193,11 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
         boolean validBuilding(Building dest, Item item){
             if (item == null || dest == null || dest.team != this.team) return false;
 
-            if (dest instanceof CausticHeart.HeartBuilding) {
-                return item == Items.graphite && dest.acceptItem(this, item);
-            }
+            // A Heart is the Graphite sink for Blob production; never strand
+            // unrelated ores there. Other consumers decide through acceptItem.
+            if (dest instanceof CausticHeart.HeartBuilding && item != Items.graphite) return false;
 
-            if (dest instanceof CausticSpawner) {
-                return dest.acceptItem(this, item);
-            }
-
-            return dest instanceof CordBuild && dest.acceptItem(this, item);
+            return dest.acceptItem(this, item);
         }
 
         @Override
