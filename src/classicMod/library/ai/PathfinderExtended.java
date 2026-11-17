@@ -4,6 +4,7 @@ import arc.Events;
 import arc.math.geom.QuadTree;
 import arc.struct.*;
 import arc.util.Log;
+import classicMod.content.RVars;
 import classicMod.library.blocks.legacyBlocks.LegacyCommandCenter;
 import classicMod.library.blocks.neoplasiaBlocks.CausticHeart;
 import mindustry.Vars;
@@ -84,9 +85,29 @@ public class PathfinderExtended extends Pathfinder {
         }
 
         protected void getPositions(IntSeq out) {
-            for (Tile tile : Ores) {
-                if (tile != null && tile.build == null && tile.block() == Blocks.air) {
-                    out.add(tile.array());
+            java.util.HashSet<Integer> added = new java.util.HashSet<>();
+
+            for (Tile ore : Ores) {
+                if (ore == null || ore.floor() == null) continue;
+
+                // Floor ore tiles can be covered directly by a Caustic drill.
+                if (ore.build == null && ore.block() == Blocks.air
+                        && RVars.CordCanDrill.contains(ore.drop())
+                        && !ore.floor().isLiquid && ore.floor().liquidDrop == null) {
+                    if (added.add(ore.array())) out.add(ore.array());
+                }
+
+                // Wall deposits are mined by a drill placed on the adjacent
+                // empty tile, not by trying to path onto the solid wall itself.
+                if (ore.build == null && ore.block().itemDrop != null
+                        && RVars.CordCanDrill.contains(ore.wallDrop())) {
+                    for (var direction : arc.math.geom.Geometry.d4) {
+                        Tile approach = Vars.world.tile(ore.x + direction.x, ore.y + direction.y);
+                        if (approach == null || approach.build != null
+                                || approach.block() != Blocks.air || approach.floor() == null
+                                || approach.floor().isLiquid || approach.floor().liquidDrop != null) continue;
+                        if (added.add(approach.array())) out.add(approach.array());
+                    }
                 }
             }
         }
