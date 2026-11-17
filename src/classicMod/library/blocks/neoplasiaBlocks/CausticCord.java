@@ -265,7 +265,7 @@ public class CausticCord extends NeoplasmBlock implements Autotiler {
                 } else {
                     Tile bestLocal = null;
                     float bestScore = Float.MAX_VALUE;
-                    for (Point2 direction : Geometry.d8) {
+                    for (Point2 direction : Geometry.d4) {
                         Tile candidate = Vars.world.tile(origin.x + direction.x, origin.y + direction.y);
                         if (candidate == null || candidate.build != null || !passable(candidate, true)) continue;
                         if (prev != null && prev.tile == candidate) continue;
